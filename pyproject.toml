@@ -1,0 +1,32 @@
+[project]
+name = "table-ronde"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "art0-v1r0s", email = "arthurd2000@gmil.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.4.0",
+    "langchain-google-genai>=4.4.0",
+    "pydantic>=2.13.5",
+    "rich>=15.0.0",
+    "typer>=0.27.2",
+]
+
+[project.scripts]
+table-ronde = "table_ronde.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.12.14,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.7",
+]
+
+[tool.ruff.lint]
+ignore = ["B008", "BLE001", "S110", "SIM102"]
