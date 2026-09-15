@@ -1,7 +1,9 @@
 import os
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 SKEPTIC_SYSTEM_PROMPT = """Tu es l'Agent 1 : Le Sceptique (L'Avocat du Diable).
 Ton rôle est de trouver les failles, les problèmes de scalabilité, les risques de sécurité, le manque de rigueur et la dette technique dans le sujet ou le projet présenté.
@@ -20,20 +22,64 @@ Tu retiens les critiques valides du Sceptique pour éliminer les risques, et tu 
 Quand on te demande la résolution finale, tu génères un **Plan d'Implémentation v2.0** ultra-structuré en Markdown."""
 
 
-def get_llm(model_name: str = "gemini-2.5-flash", temperature: float = 0.7, api_key: str | None = None) -> ChatGoogleGenerativeAI:
-    key = api_key or os.getenv("GEMINI_API_KEY")
-    if not key:
-        raise ValueError(
-            "La clé d'API Gemini est introuvable. Veuillez définir la variable d'environnement GEMINI_API_KEY."
+def get_llm(
+    provider: str = "gemini",
+    model_name: str | None = None,
+    temperature: float = 0.7,
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> BaseChatModel:
+    prov = provider.lower()
+    if prov in ("copilot", "github", "openai"):
+        model = model_name or "gpt-4o"
+        key = (
+            api_key
+            or os.getenv("GITHUB_TOKEN")
+            or os.getenv("COPILOT_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
         )
-    return ChatGoogleGenerativeAI(model=model_name, temperature=temperature, google_api_key=key)
+        if not key:
+            raise ValueError(
+                "Clé d'API introuvable pour GitHub Copilot / OpenAI. "
+                "Veuillez définir GITHUB_TOKEN ou COPILOT_API_KEY dans vos variables d'environnement."
+            )
+        endpoint = base_url or (
+            "https://models.inference.ai.azure.com" if prov in ("copilot", "github") else None
+        )
+        kwargs: dict = {"model": model, "temperature": temperature, "api_key": key}
+        if endpoint:
+            kwargs["base_url"] = endpoint
+        return ChatOpenAI(**kwargs)
+    elif prov == "gemini":
+        model = model_name or "gemini-2.5-flash"
+        key = api_key or os.getenv("GEMINI_API_KEY")
+        if not key:
+            raise ValueError(
+                "La clé d'API Gemini est introuvable. Veuillez définir la variable d'environnement GEMINI_API_KEY."
+            )
+        return ChatGoogleGenerativeAI(model=model, temperature=temperature, google_api_key=key)
+    else:
+        raise ValueError(f"Fournisseur (provider) non pris en charge : '{provider}'. Choisissez 'gemini' ou 'copilot'.")
 
 
 class TableRondeAgents:
-    def __init__(self, model_name: str = "gemini-2.5-flash", api_key: str | None = None):
-        self.skeptic_llm = get_llm(model_name, temperature=0.6, api_key=api_key)
-        self.enthusiast_llm = get_llm(model_name, temperature=0.8, api_key=api_key)
-        self.architect_llm = get_llm(model_name, temperature=0.3, api_key=api_key)
+    def __init__(
+        self,
+        provider: str = "gemini",
+        model_name: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ):
+        self.provider = provider
+        self.skeptic_llm = get_llm(
+            provider=provider, model_name=model_name, temperature=0.6, api_key=api_key, base_url=base_url
+        )
+        self.enthusiast_llm = get_llm(
+            provider=provider, model_name=model_name, temperature=0.8, api_key=api_key, base_url=base_url
+        )
+        self.architect_llm = get_llm(
+            provider=provider, model_name=model_name, temperature=0.3, api_key=api_key, base_url=base_url
+        )
 
     def invoke_agent(self, role: str, history: list, new_instruction: str) -> str:
         if role == "skeptic":
@@ -54,3 +100,4 @@ class TableRondeAgents:
 
         response = llm.invoke(messages)
         return str(response.content)
+

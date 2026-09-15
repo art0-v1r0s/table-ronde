@@ -11,7 +11,7 @@ from table_ronde.orchestrator import Orchestrator
 
 app = typer.Typer(
     name="table-ronde",
-    help="Orchestrateur multi-agents pour débattre et concevoir des plans d'implémentation v2.0",
+    help="Orchestrateur multi-agents pour débattre et concevoir des plans d'implémentation v2.0 / v3.0",
 )
 console = Console()
 
@@ -47,8 +47,14 @@ def main(
     output: Path = typer.Option(
         Path("plan_v2.md"), "--output", "-o", help="Fichier de sortie pour le plan final"
     ),
-    model: str = typer.Option(
-        "gemini-2.5-flash", "--model", "-m", help="Modèle Gemini à utiliser avec LangChain"
+    provider: str = typer.Option(
+        "gemini", "--provider", "-pr", help="Fournisseur LLM ('gemini' ou 'copilot' / 'github')"
+    ),
+    model: str | None = typer.Option(
+        None, "--model", "-m", help="Modèle à utiliser (ex: 'gemini-2.5-flash' ou 'gpt-4o')"
+    ),
+    export_transcript: Path | None = typer.Option(
+        None, "--export-transcript", "-t", help="Fichier pour exporter le transcript complet du débat"
     ),
 ):
     if not prompt and not path:
@@ -57,22 +63,29 @@ def main(
         )
         raise typer.Exit(code=1)
 
-    if not os.getenv("GEMINI_API_KEY"):
-        console.print(
-            "[bold yellow]Attention : GEMINI_API_KEY n'est pas définie dans l'environnement.[/bold yellow]"
-        )
+    prov_clean = provider.lower()
+    if prov_clean in ("copilot", "github"):
+        if not (os.getenv("GITHUB_TOKEN") or os.getenv("COPILOT_API_KEY")):
+            console.print(
+                "[bold yellow]Attention : GITHUB_TOKEN ou COPILOT_API_KEY n'est pas définie dans l'environnement.[/bold yellow]"
+            )
+    elif prov_clean == "gemini":
+        if not os.getenv("GEMINI_API_KEY"):
+            console.print(
+                "[bold yellow]Attention : GEMINI_API_KEY n'est pas définie dans l'environnement.[/bold yellow]"
+            )
 
     user_prompt = prompt or "Analyse et amélioration du projet fourni."
 
     console.print("[bold cyan]====================================================[/bold cyan]")
-    console.print("[bold cyan]       TABLE-RONDE : DEBAT MULTI-AGENTS (LangChain) [/bold cyan]")
+    console.print(f"[bold cyan]  TABLE-RONDE : DEBAT MULTI-AGENTS ({provider.upper()}) [/bold cyan]")
     console.print("[bold cyan]====================================================[/bold cyan]\n")
 
     if path:
         console.print(f"[dim]📁 Analyse du projet à l'emplacement : {path.resolve()}[/dim]\n")
 
     try:
-        agents = TableRondeAgents(model_name=model)
+        agents = TableRondeAgents(provider=provider, model_name=model)
         orchestrator = Orchestrator(agents, on_message_callback=render_agent_message)
 
         with console.status("[bold yellow]La Table-Ronde débute ses échanges...[/bold yellow]"):
@@ -81,10 +94,19 @@ def main(
         final_plan = result["final_plan"]
         output.write_text(final_plan, encoding="utf-8")
 
+        summary_msg = (
+            f"[bold green]✨ Plan d'Implémentation généré avec succès ![/bold green]\n"
+            f"Le fichier a été enregistré dans : [bold white]{output.resolve()}[/bold white]"
+        )
+
+        if export_transcript:
+            full_transcript = result.get("full_transcript", "")
+            export_transcript.write_text(full_transcript, encoding="utf-8")
+            summary_msg += f"\n[dim]📝 Transcript exporté dans : {export_transcript.resolve()}[/dim]"
+
         console.print(
             Panel(
-                f"[bold green]✨ Plan d'Implémentation v2.0 généré avec succès ![/bold green]\n"
-                f"Le fichier a été enregistré dans : [bold white]{output.resolve()}[/bold white]",
+                summary_msg,
                 title="🎉 Terminé",
                 border_style="green",
             )
@@ -97,3 +119,4 @@ def main(
 
 if __name__ == "__main__":
     app()
+

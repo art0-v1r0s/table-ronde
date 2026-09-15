@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+
 from table_ronde.orchestrator import Orchestrator
 
 
@@ -16,6 +17,9 @@ def test_orchestrator_flow():
 
     assert "final_plan" in res
     assert res["final_plan"] == "Réponse fictive de architect"
+    assert "full_transcript" in res
+    assert "# Transcript Complet" in res["full_transcript"]
     assert len(messages_received) == 6
     roles = [m[0] for m in messages_received]
     assert roles == ["architect", "skeptic", "enthusiast", "skeptic", "enthusiast", "architect"]
+

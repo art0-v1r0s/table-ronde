@@ -20,14 +20,19 @@ class Orchestrator:
         self.agents = agents
         self.on_message_callback = on_message_callback
         self.history: list[Any] = []
+        self.transcript_entries: list[dict[str, str]] = []
 
-    def _notify(self, role: str, message: str):
+    def _notify(self, role: str, message: str, title: str):
+        self.transcript_entries.append({"role": role, "title": title, "content": message})
         if self.on_message_callback:
             self.on_message_callback(role, message)
 
     def run_simulation(
         self, prompt_user: str, project_path: str | None = None
     ) -> dict[str, str]:
+        self.history.clear()
+        self.transcript_entries.clear()
+
         # 1. Préparation du contexte initial
         context = f"Sujet / Demande initiale de l'utilisateur :\n{prompt_user}\n"
         if project_path:
@@ -40,7 +45,7 @@ class Orchestrator:
             self.history,
             f"Présente l'ouverture de la séance d'audit basée sur ce contexte :\n{context}",
         )
-        self._notify("architect", architect_intro)
+        self._notify("architect", architect_intro, "Ouverture de l'Architecte")
         self.history.append(HumanMessage(content=f"Contexte du projet :\n{context}"))
         self.history.append(AIMessage(content=f"[Architecte] {architect_intro}"))
 
@@ -49,7 +54,7 @@ class Orchestrator:
             self.history,
             "Fais une critique incisive et identifie les failles majeures du projet présenté.",
         )
-        self._notify("skeptic", skeptic_audit)
+        self._notify("skeptic", skeptic_audit, "Audit du Sceptique")
         self.history.append(AIMessage(content=f"[Sceptique] {skeptic_audit}"))
 
         enthusiast_audit = self.agents.invoke_agent(
@@ -57,7 +62,7 @@ class Orchestrator:
             self.history,
             "Réponds aux attaques du Sceptique, défends la vision et propose des ajouts innovants.",
         )
-        self._notify("enthusiast", enthusiast_audit)
+        self._notify("enthusiast", enthusiast_audit, "Vision de l'Enthousiaste")
         self.history.append(AIMessage(content=f"[Enthousiaste] {enthusiast_audit}"))
 
         # --- PHASE 2 : LE CHOC DES IDÉES ---
@@ -66,7 +71,7 @@ class Orchestrator:
             self.history,
             "Attaque spécifiquement les propositions de l'Enthousiaste et pointe du doigt les risques techniques/complexité.",
         )
-        self._notify("skeptic", skeptic_rebuttal)
+        self._notify("skeptic", skeptic_rebuttal, "Réfutation du Sceptique")
         self.history.append(AIMessage(content=f"[Sceptique] {skeptic_rebuttal}"))
 
         enthusiast_rebuttal = self.agents.invoke_agent(
@@ -74,7 +79,7 @@ class Orchestrator:
             self.history,
             "Propose des solutions aux réserves du Sceptique et montre le chemin le plus court vers la livraison.",
         )
-        self._notify("enthusiast", enthusiast_rebuttal)
+        self._notify("enthusiast", enthusiast_rebuttal, "Contre-propositions de l'Enthousiaste")
         self.history.append(AIMessage(content=f"[Enthousiaste] {enthusiast_rebuttal}"))
 
         # --- PHASE 3 : LA RÉSOLUTION ---
@@ -83,10 +88,36 @@ class Orchestrator:
             self.history,
             "Fais la synthèse du débat et génère le 'Plan d'Implémentation v2.0' complet en Markdown.",
         )
-        self._notify("architect", architect_final)
+        self._notify("architect", architect_final, "Plan d'Implémentation Final (Architecte)")
         self.history.append(AIMessage(content=f"[Architecte - Plan Final] {architect_final}"))
+
+        # Construction du transcript complet
+        transcript_lines = [
+            "# Transcript Complet de la Table-Ronde",
+            "",
+            "## 🎯 Sujet initial",
+            prompt_user,
+            "",
+            "---",
+            "",
+            "## 💬 Débat entre les Agents",
+            "",
+        ]
+        for entry in self.transcript_entries:
+            role_emoji = {
+                "architect": "🏛️",
+                "skeptic": "😈",
+                "enthusiast": "🚀",
+            }.get(entry["role"], "🤖")
+            transcript_lines.append(f"### {role_emoji} {entry['title']}")
+            transcript_lines.append(entry["content"])
+            transcript_lines.append("")
+
+        full_transcript = "\n".join(transcript_lines)
 
         return {
             "transcript_summary": "Simulation terminée avec succès.",
             "final_plan": architect_final,
+            "full_transcript": full_transcript,
         }
+

@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import pathspec
+
 EXCLUDE_DIRS: set[str] = {
     ".git",
     ".venv",
@@ -36,8 +38,43 @@ EXCLUDE_EXTENSIONS: set[str] = {
     ".lock",
 }
 
-MAX_TOTAL_CHARS = 40_000
-MAX_FILE_CHARS = 5_000
+HIGH_PRIORITY_NAMES: set[str] = {
+    "readme.md",
+    "pyproject.toml",
+    "package.json",
+    "cargo.toml",
+    "go.mod",
+    "makefile",
+    "dockerfile",
+    "main.py",
+    "app.py",
+    "cli.py",
+    "index.ts",
+    "index.js",
+    "orchestrator.py",
+    "agents.py",
+}
+
+HIGH_PRIORITY_EXTS: set[str] = {
+    ".py",
+    ".ts",
+    ".js",
+    ".go",
+    ".rs",
+    ".java",
+    ".c",
+    ".cpp",
+    ".h",
+    ".toml",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".md",
+    ".sql",
+}
+
+MAX_TOTAL_CHARS = 60_000
+MAX_FILE_CHARS = 6_000
 
 
 def is_binary(file_path: Path) -> bool:
@@ -47,6 +84,36 @@ def is_binary(file_path: Path) -> bool:
             return False
     except Exception:
         return True
+
+
+def get_gitignore_spec(root: Path) -> pathspec.PathSpec | None:
+    gitignore_path = root / ".gitignore"
+    if gitignore_path.is_file():
+        try:
+            lines = gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            return pathspec.PathSpec.from_lines("gitignore", lines)
+        except Exception:
+            return None
+    return None
+
+
+def calculate_file_priority(rel_path: Path) -> int:
+    name_lower = rel_path.name.lower()
+    ext_lower = rel_path.suffix.lower()
+    score = 0
+
+    if name_lower in HIGH_PRIORITY_NAMES:
+        score += 100
+    if ext_lower in HIGH_PRIORITY_EXTS:
+        score += 50
+    if "test" in name_lower or "spec" in name_lower:
+        score -= 30
+    if len(rel_path.parts) == 1:
+        score += 20
+    elif len(rel_path.parts) == 2:
+        score += 10
+
+    return score
 
 
 def scan_project(project_path: str | Path) -> str:
@@ -61,15 +128,26 @@ def scan_project(project_path: str | Path) -> str:
         except Exception as e:
             return f"Erreur de lecture du fichier {root.name}: {e}"
 
+    spec = get_gitignore_spec(root)
+
     tree_lines = [f"Structure du projet : {root.name}/"]
-    file_contents = []
-    total_chars = 0
+    scanned_files: list[tuple[int, Path, str]] = []  # (priority, rel_file_path, abs_file_path)
 
     for dirpath, dirnames, filenames in os.walk(root):
-        # Filtrer les dossiers ignorés
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS and not d.startswith(".")]
-
         rel_dir = Path(dirpath).relative_to(root)
+
+        # Filtrer dossiers ignorés de base + gitignore
+        filtered_dirs = []
+        for d in dirnames:
+            if d in EXCLUDE_DIRS or d.startswith("."):
+                continue
+            rel_subdir = rel_dir / d if rel_dir != Path(".") else Path(d)
+            if spec and (spec.match_file(str(rel_subdir)) or spec.match_file(f"{rel_subdir}/")):
+                continue
+            filtered_dirs.append(d)
+        dirnames[:] = filtered_dirs
+
+
         level = len(rel_dir.parts) if rel_dir != Path(".") else 0
         indent = "  " * level
         if rel_dir != Path("."):
@@ -80,25 +158,41 @@ def scan_project(project_path: str | Path) -> str:
             if f.startswith("."):
                 continue
             file_path = Path(dirpath) / f
+            rel_file = rel_dir / f if rel_dir != Path(".") else Path(f)
+
             if file_path.suffix.lower() in EXCLUDE_EXTENSIONS:
+                continue
+
+            if spec and spec.match_file(str(rel_file)):
                 continue
 
             tree_lines.append(f"{sub_indent}📄 {f}")
 
-            if total_chars < MAX_TOTAL_CHARS:
-                if not is_binary(file_path):
-                    try:
-                        content = file_path.read_text(encoding="utf-8", errors="ignore")
-                        if content.strip():
-                            snippet = content[:MAX_FILE_CHARS]
-                            rel_file_path = file_path.relative_to(root)
-                            file_contents.append(f"\n--- Fichier: {rel_file_path} ---\n{snippet}")
-                            total_chars += len(snippet)
-                    except Exception:
-                        pass
+            if not is_binary(file_path):
+                prio = calculate_file_priority(rel_file)
+                scanned_files.append((prio, rel_file, file_path))
 
-    summary = "\n".join(tree_lines) + "\n\n=== CONTENU DES FICHIERS PRINCIPAUX ===\n" + "\n".join(file_contents)
+    # Trier les fichiers par priorité décroissante
+    scanned_files.sort(key=lambda item: item[0], reverse=True)
+
+    file_contents = []
+    total_chars = 0
+
+    for prio, rel_file, abs_file in scanned_files:
+        if total_chars >= MAX_TOTAL_CHARS:
+            break
+        try:
+            content = abs_file.read_text(encoding="utf-8", errors="ignore")
+            if content.strip():
+                snippet = content[:MAX_FILE_CHARS]
+                file_contents.append(f"\n--- Fichier ({prio} pts): {rel_file} ---\n{snippet}")
+                total_chars += len(snippet)
+        except Exception:
+            pass
+
+    summary = "\n".join(tree_lines) + "\n\n=== CONTENU DES FICHIERS PRINCIPAUX (Priorités RAG) ===\n" + "\n".join(file_contents)
     if total_chars >= MAX_TOTAL_CHARS:
-        summary += "\n\n[Attention: Le contenu a été tronqué pour respecter la limite de contexte]"
+        summary += "\n\n[Attention: Le contenu a été sélectionné intelligemment et tronqué pour respecter la limite de budget]"
 
     return summary
+
