@@ -52,37 +52,61 @@ def get_role_style(role: str, agents_cfg: TableRondeAgents) -> tuple[str, str]:
     return (f"Agent ({role})", "white")
 
 
-def make_stream_callback(agents: TableRondeAgents) -> StreamCallback:
-    """Creates the streaming callback: displays real-time output using rich.Live."""
-    def stream_callback(role: str, gen: Generator[BaseMessageChunk, None, None]) -> str:
-        title, border_style = get_role_style(role, agents)
-        content = ""
+def make_stream_callback(agents: TableRondeAgents) -> Callable:
+    def callback(role: str, gen) -> str:
+        # We need to map role -> title, emoji
+        title = role
+        emoji = "🤖"
+        if role == agents.architect_cfg["role"]:
+            title = agents.architect_cfg.get("title", "Architect")
+            emoji = agents.architect_cfg.get("emoji", "🏛️")
+        else:
+            for p in agents.personas:
+                if p["role"] == role:
+                    title = p.get("title", role)
+                    emoji = p.get("emoji", "🤖")
+                    break
+
+        full_text = ""
+        live = None
+
         try:
-            with Live(
-                Panel(Text("…"), title=title, border_style=border_style, padding=(1, 2)),
-                refresh_per_second=15,
-                console=console,
-            ) as live:
-                for chunk in gen:
-                    if hasattr(chunk, "content") and chunk.content:
-                        if isinstance(chunk.content, str):
-                            content += chunk.content
-                        elif isinstance(chunk.content, list):
-                            for part in chunk.content:
-                                if isinstance(part, str):
-                                    content += part
-                                elif isinstance(part, dict) and "text" in part:
-                                    content += part["text"]
-                        
-                        live.update(Panel(Text(content), title=title, border_style=border_style, padding=(1, 2)))
-        except Exception as e:
-            console.print(f"[yellow]⚠️ Stream interrupted ({e}), keeping partial response.[/yellow]")
+            for chunk in gen:
+                if hasattr(chunk, "content") and chunk.content:
+                    if isinstance(chunk.content, str):
+                        full_text += chunk.content
+                    elif isinstance(chunk.content, list):
+                        for part in chunk.content:
+                            if isinstance(part, str):
+                                full_text += part
+                            elif isinstance(part, dict) and "text" in part:
+                                full_text += part["text"]
 
-        console.print(Panel(Markdown(content), title=title, border_style=border_style, padding=(1, 2)))
-        console.print()
-        return content
+                    if full_text.strip() and live is None:
+                        panel = Panel(
+                            Markdown(full_text),
+                            title=f"{emoji} {title}",
+                            border_style="blue",
+                            padding=(1, 2),
+                        )
+                        live = Live(panel, refresh_per_second=10)
+                        live.start()
 
-    return stream_callback
+                    if live:
+                        panel = Panel(
+                            Markdown(full_text),
+                            title=f"{emoji} {title}",
+                            border_style="blue",
+                            padding=(1, 2),
+                        )
+                        live.update(panel)
+        finally:
+            if live:
+                live.stop()
+
+        return full_text
+
+    return callback
 
 
 def make_human_input_callback(interactive: bool) -> Callable[[], str | None] | None:

@@ -1,6 +1,9 @@
 import os
+import warnings
 from collections.abc import Generator
 from typing import Any
+
+warnings.filterwarnings("ignore", category=UserWarning, module="langchain_google_genai.*")
 
 from langchain_core.messages import (
     BaseMessage,

@@ -107,7 +107,7 @@ def search_web(query: str) -> str:
         The search results snippet.
     """
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=3))
             
