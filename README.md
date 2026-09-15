@@ -1,90 +1,90 @@
 # 🏛️ Table-Ronde
 
-> **Orchestrateur multi-agents dynamique pour le débat technique et la génération de plans d'implémentation v2.0 / v3.0.**
+> **Dynamic multi-agent orchestrator for technical debate and generating implementation plans v2.0 / v3.0.**
 
-`table-ronde` est un outil en ligne de commande (CLI) propulsé par **LangChain** et **Rich**. Il simule une table-ronde entre plusieurs agents IA aux rôles et personnalités complémentaires (par défaut : l'Architecte, le Sceptique et l'Enthousiaste) afin d'analyser un sujet, un concept d'architecture ou un codebase existant et de produire un plan d'action structuré.
+`table-ronde` is a Command Line Interface (CLI) tool powered by **LangChain** and **Rich**. It simulates a roundtable discussion between several AI agents with complementary roles and personalities (by default: the Architect, the Skeptic, and the Enthusiast) to analyze a topic, an architectural concept, or an existing codebase and produce a highly structured action plan.
 
-Depuis sa version 2.0, **Table-Ronde est entièrement dynamique** : vous pouvez configurer vos propres experts, utiliser différents LLMs simultanément, et orchestrer des débats sur plusieurs rounds !
-
----
-
-## ⚡ Caractéristiques (v2.0)
-
-- **Configuration Dynamique (`config.yml`)** : Définissez vos propres personas (ex: Expert Sécurité, Développeur Junior), leurs emojis, leurs prompts et leurs températures individuelles.
-- **Modèles hybrides** : Possibilité d'assigner un modèle / fournisseur LLM différent à chaque agent (ex: `gpt-4o` pour l'Architecte, `gemini-3.6-flash` pour le Sceptique).
-- **Rounds multiples** : Lancez des débats approfondis sur plusieurs boucles (`--rounds N`).
-- **Mode Interactif Avancé** : Intervenez avant la synthèse finale pour donner vos directives, ou tapez `/tour` pour obliger les agents à refaire un nouveau round de débat en tenant compte de votre remarque (`--interactive`).
-- **Analyse de codebase** : Scanner de projet intelligent intégrant le filtrage `.gitignore` via `pathspec`.
-- **Réseau ultra-optimisé** : Implémentation réseau (IPv4 forcée) pour des temps de connexion instantanés, évitant les blackholes IPv6 sur l'API Google.
-- **Streaming en temps réel** : Affichage fluide chunk par chunk des réflexions de chaque agent avec `rich.Live`.
-- **Export des livrables** : Exportation du plan final au format Markdown et export optionnel du transcript complet des échanges.
+Since version 2.0, **Table-Ronde is completely dynamic**: you can configure your own experts, use different LLMs simultaneously, and orchestrate debates across multiple rounds!
 
 ---
 
-## 🎭 Les Agents par défaut
+## ⚡ Features (v2.0)
 
-Si vous n'utilisez pas de configuration personnalisée, le système lance ces 3 agents par défaut :
+- **Dynamic Configuration (`config.yml`)**: Define your own personas (e.g., Security Expert, Junior Developer), their emojis, their prompts, and individual temperatures.
+- **Hybrid Models**: Ability to assign a different LLM provider/model to each agent (e.g., `gpt-4o` for the Architect, `gemini-3.6-flash` for the Skeptic).
+- **Multiple Rounds**: Launch in-depth debates across multiple loops (`--rounds N`).
+- **Advanced Interactive Mode**: Intervene before the final synthesis to give your directives, or type `/round` to force the agents into a new debate round based on your remarks (`--interactive`).
+- **Codebase Analysis**: Smart project scanner with built-in `.gitignore` filtering via `pathspec`.
+- **Highly Optimized Network**: Network implementation (forcing IPv4) for instant connection times, avoiding IPv6 blackholes on the Google API.
+- **Real-time Streaming**: Fluid chunk-by-chunk display of each agent's thoughts using `rich.Live`.
+- **Deliverable Export**: Export the final plan in Markdown format and optionally export the full transcript of the exchanges.
 
-| Emoji | Rôle | Nom | Description & Rôle dans le débat | Température |
+---
+
+## 🎭 Default Agents
+
+If you don't use a custom configuration, the system launches these 3 default agents:
+
+| Emoji | Role | Name | Description & Role in the debate | Temperature |
 | :---: | :--- | :--- | :--- | :---: |
-| 😈 | **Agent 1** | **Le Sceptique** | L'Avocat du Diable. Recherche activement les failles, la dette technique, les risques de sécurité et la complexité inutile. | `0.6` |
-| 🚀 | **Agent 2** | **L'Enthousiaste** | Le Visionnaire. Répond aux critiques, propose des solutions modernes, cherche le chemin le plus rapide pour délivrer de la valeur. | `0.8` |
-| 🏛️ | **Agent 3** | **L'Architecte** | Le Modérateur. Oriente les échanges, tranche les débats de manière pragmatique et génère le **Plan d'Implémentation Final** en Markdown. | `0.3` |
+| 😈 | **Agent 1** | **The Skeptic** | The Devil's Advocate. Actively looks for flaws, technical debt, security risks, and unnecessary complexity. | `0.6` |
+| 🚀 | **Agent 2** | **The Enthusiast** | The Visionary. Responds to criticisms, proposes modern solutions, seeks the fastest path to deliver value. | `0.8` |
+| 🏛️ | **Agent 3** | **The Architect** | The Moderator. Guides the exchanges, pragmatically settles debates, and generates the **Final Implementation Plan** in Markdown. | `0.3` |
 
 ---
 
 ## 🛠️ Installation
 
-Le projet utilise [`uv`](https://github.com/astral-sh/uv) pour la gestion des dépendances et de l'environnement virtuel (Python ≥ 3.12).
+The project uses [`uv`](https://github.com/astral-sh/uv) for dependency and virtual environment management (Python ≥ 3.12).
 
 ```bash
-# Cloner le dépôt
+# Clone the repository
 git clone https://github.com/art0-v1r0s/table-ronde.git
 cd table-ronde
 
-# Synchroniser l'environnement et installer les dépendances
+# Sync the environment and install dependencies
 uv sync
 ```
 
 ---
 
-## 🔑 Configuration des clés d'API
+## 🔑 API Keys Configuration
 
-Définissez la variable d'environnement correspondant au fournisseur que vous souhaitez utiliser :
+Set the environment variable corresponding to the provider you want to use:
 
-### Pour Google Gemini (par défaut)
+### For Google Gemini (default)
 ```bash
-export GEMINI_API_KEY="votre_cle_api_gemini"
+export GEMINI_API_KEY="your_gemini_api_key"
 ```
 
-### Pour GitHub Copilot / GitHub Models / OpenAI
+### For GitHub Copilot / GitHub Models / OpenAI
 ```bash
-export GITHUB_TOKEN="votre_token_github"
-# ou
-export COPILOT_API_KEY="votre_cle_copilot"
-# ou
-export OPENAI_API_KEY="votre_cle_openai"
+export GITHUB_TOKEN="your_github_token"
+# or
+export COPILOT_API_KEY="your_copilot_key"
+# or
+export OPENAI_API_KEY="your_openai_key"
 ```
 
 ---
 
-## 🚀 Utilisation
+## 🚀 Usage
 
-### 1. Analyse simple (Prompts et Agents par défaut)
-
-```bash
-uv run table-ronde "Concevoir une architecture microservices temps réel pour une plateforme d'enchères"
-```
-
-### 2. Audit et refactorisation d'un projet existant
+### 1. Simple Analysis (Default Prompts and Agents)
 
 ```bash
-uv run table-ronde --path /chemin/vers/mon-projet "Optimiser la sécurité et la scalabilité du projet"
+uv run table-ronde "Design a real-time microservices architecture for an auction platform"
 ```
 
-### 3. Utiliser votre propre configuration de Personas (NOUVEAU)
+### 2. Audit and Refactoring of an Existing Project
 
-Créez un fichier `my_config.yml` pour définir vos experts sur mesure :
+```bash
+uv run table-ronde --path /path/to/my-project "Optimize the security and scalability of the project"
+```
+
+### 3. Use Your Own Persona Configuration (NEW)
+
+Create a `my_config.yml` file to define your custom experts:
 ```yaml
 orchestrator:
   rounds: 2
@@ -93,66 +93,66 @@ orchestrator:
 
 architect:
   role: architect
-  title: "L'Architecte"
+  title: "The Architect"
   emoji: "🏛️"
   temperature: 0.2
-  prompt: "Tu es l'Architecte. Modère les experts et propose un plan ultra détaillé."
-  # model: gpt-4o (vous pouvez surcharger le modèle par défaut ici)
+  prompt: "You are the Architect. Moderate the experts and propose a highly detailed plan."
+  # model: gpt-4o (you can override the default model here)
 
 personas:
   - role: security
-    title: "L'Expert Sécurité"
+    title: "Security Expert"
     emoji: "🛡️"
     temperature: 0.3
-    prompt: "Tu cherches systématiquement les failles OWASP dans l'idée proposée."
+    prompt: "You systematically look for OWASP vulnerabilities in the proposed idea."
   - role: dev
     title: "Lead Developer"
     emoji: "💻"
     temperature: 0.6
-    prompt: "Tu parles architecture logicielle, design patterns et scalabilité."
+    prompt: "You talk software architecture, design patterns, and scalability."
 ```
-Puis lancez l'outil :
+Then run the tool:
 ```bash
-uv run table-ronde --config my_config.yml "Mettre en place un SSO OAuth2"
+uv run table-ronde --config my_config.yml "Implement an OAuth2 SSO"
 ```
 
-### 4. Mode interactif (Human-in-the-loop) et Multi-tours
+### 4. Interactive Mode (Human-in-the-loop) and Multi-Rounds
 
 ```bash
-uv run table-ronde --interactive --rounds 2 "Moderniser notre architecture de pipeline de données"
+uv run table-ronde --interactive --rounds 2 "Modernize our data pipeline architecture"
 ```
-*Le débat s'interrompra à la fin de chaque round pour vous permettre d'insérer vos directives à l'Architecte. Si vous répondez avec la commande magique `/tour`, les agents referont un cycle complet de débat autour de votre remarque !*
+*The debate will pause at the end of each round to allow you to insert your directives for the Architect. If you reply with the magic command `/round`, the agents will do a full new cycle of debate based on your remark!*
 
 ---
 
-## 🛠️ Options CLI complètes
+## 🛠️ Full CLI Options
 
 ```bash
 uv run table-ronde [OPTIONS] [PROMPT]
 ```
 
-| Option | Raccourci | Description | Valeur par défaut |
+| Option | Shortcut | Description | Default Value |
 | :--- | :--- | :--- | :--- |
-| `--config` | `-c` | Fichier YAML de configuration personnalisée des personas | `None` |
-| `--rounds` | `-r` | Nombre de tours de débat (surcharge la config YAML) | `1` |
-| `--interactive` | `-i` | Pause avant la résolution pour injecter votre note ou `/tour` | `False` |
-| `--path` | `-p` | Chemin vers un répertoire de projet existant à scanner | `None` |
-| `--output` | `-o` | Fichier de sortie pour le plan d'implémentation final | `plan_v2.md` |
-| `--provider` | `-pr` | Fournisseur LLM (`gemini`, `copilot`, `github`, `openai`) | `gemini` |
-| `--model` | `-m` | Modèle spécifique à utiliser (ex: `gemini-3.6-flash`, `gpt-4o`) | Auto selon provider |
-| `--export-transcript` | `-t` | Chemin du fichier pour exporter l'intégralité du débat | `None` |
+| `--config` | `-c` | YAML configuration file for custom personas | `None` |
+| `--rounds` | `-r` | Number of debate rounds (overrides YAML config) | `1` |
+| `--interactive` | `-i` | Pause before resolution to inject your note or `/round` | `False` |
+| `--path` | `-p` | Path to an existing project directory to scan | `None` |
+| `--output` | `-o` | Output file for the final implementation plan | `plan_v2.md` |
+| `--provider` | `-pr` | LLM Provider (`gemini`, `copilot`, `github`, `openai`) | `gemini` |
+| `--model` | `-m` | Specific model to use (e.g., `gemini-3.6-flash`, `gpt-4o`) | Auto based on provider |
+| `--export-transcript` | `-t` | File path to export the entire debate transcript | `None` |
 
 ---
 
-## 🧪 Tests & Qualité
+## 🧪 Testing & Quality
 
-Exécuter la suite de tests unitaires avec `pytest` :
+Run the unit test suite with `pytest`:
 
 ```bash
 uv run pytest
 ```
 
-Vérifier la qualité du code avec `ruff` :
+Check code quality with `ruff`:
 
 ```bash
 uv run ruff check .
@@ -160,6 +160,6 @@ uv run ruff check .
 
 ---
 
-## 📄 Licence
+## 📄 License
 
-Ce projet est sous licence MIT.
+This project is licensed under the MIT License.

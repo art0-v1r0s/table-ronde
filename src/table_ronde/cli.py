@@ -15,14 +15,14 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
-# Optimisation réseau : Forcer IPv4 pour éviter le timeout IPv6 de 80s (blackholing)
+# Network optimization: Force IPv4 to prevent 80s IPv6 timeout (blackholing)
 old_getaddrinfo = socket.getaddrinfo
 def new_getaddrinfo(*args, **kwargs):
     responses = old_getaddrinfo(*args, **kwargs)
     return [response for response in responses if response[0] == socket.AF_INET]
 socket.getaddrinfo = new_getaddrinfo
 
-# Supprimer les avertissements inutiles
+# Suppress unnecessary warnings
 logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", message=".*fixed sampling defaults.*")
 
@@ -31,7 +31,7 @@ from table_ronde.orchestrator import Orchestrator, StreamCallback
 
 app = typer.Typer(
     name="table-ronde",
-    help="Orchestrateur multi-agents pour débattre et concevoir des plans d'implémentation v2.0 / v3.0",
+    help="Multi-agent orchestrator to debate and design implementation plans v2.0 / v3.0",
 )
 console = Console()
 
@@ -53,7 +53,7 @@ def get_role_style(role: str, agents_cfg: TableRondeAgents) -> tuple[str, str]:
 
 
 def make_stream_callback(agents: TableRondeAgents) -> StreamCallback:
-    """Crée le callback de streaming : affiche en temps réel avec rich.Live."""
+    """Creates the streaming callback: displays real-time output using rich.Live."""
     def stream_callback(role: str, gen: Generator[BaseMessageChunk, None, None]) -> str:
         title, border_style = get_role_style(role, agents)
         content = ""
@@ -76,7 +76,7 @@ def make_stream_callback(agents: TableRondeAgents) -> StreamCallback:
                         
                         live.update(Panel(Text(content), title=title, border_style=border_style, padding=(1, 2)))
         except Exception as e:
-            console.print(f"[yellow]⚠️ Stream interrompu ({e}), réponse partielle conservée.[/yellow]")
+            console.print(f"[yellow]⚠️ Stream interrupted ({e}), keeping partial response.[/yellow]")
 
         console.print(Panel(Markdown(content), title=title, border_style=border_style, padding=(1, 2)))
         console.print()
@@ -92,7 +92,7 @@ def make_human_input_callback(interactive: bool) -> Callable[[], str | None] | N
     def ask() -> str | None:
         console.print()
         note = Prompt.ask(
-            "[bold yellow]💬 Votre note pour l'Architecte (ou '/tour' pour refaire un tour de débat)[/bold yellow]\n(Entrée pour ignorer)",
+            "[bold yellow]💬 Your note for the Architect (or '/round' for another debate round)[/bold yellow]\n(Press Enter to skip)",
             default="",
             console=console,
         )
@@ -105,39 +105,39 @@ def make_human_input_callback(interactive: bool) -> Callable[[], str | None] | N
 @app.command()
 def main(
     prompt: str | None = typer.Argument(
-        None, help="Description du projet ou sujet à analyser"
+        None, help="Project description or topic to analyze"
     ),
     path: Path | None = typer.Option(
-        None, "--path", "-p", help="Chemin vers le répertoire du projet existant à analyser"
+        None, "--path", "-p", help="Path to an existing project directory to analyze"
     ),
     output: Path = typer.Option(
-        Path("plan_v2.md"), "--output", "-o", help="Fichier de sortie pour le plan final"
+        Path("plan_v2.md"), "--output", "-o", help="Output file for the final plan"
     ),
     config_file: Path | None = typer.Option(
-        None, "--config", "-c", help="Fichier YAML de configuration des personas et modèles"
+        None, "--config", "-c", help="YAML configuration file for personas and models"
     ),
     rounds: int | None = typer.Option(
-        None, "--rounds", "-r", help="Nombre de tours de débat (surcharge la config)"
+        None, "--rounds", "-r", help="Number of debate rounds (overrides config)"
     ),
     provider: str = typer.Option(
-        "gemini", "--provider", "-pr", help="Fournisseur LLM ('gemini' ou 'copilot' / 'github')"
+        "gemini", "--provider", "-pr", help="LLM Provider ('gemini' or 'copilot' / 'github')"
     ),
     model: str | None = typer.Option(
-        None, "--model", "-m", help="Modèle à utiliser par défaut (ex: 'gemini-3.6-flash' ou 'gpt-4o')"
+        None, "--model", "-m", help="Default model to use (e.g., 'gemini-3.6-flash' or 'gpt-4o')"
     ),
     export_transcript: Path | None = typer.Option(
-        None, "--export-transcript", "-t", help="Fichier pour exporter le transcript complet du débat"
+        None, "--export-transcript", "-t", help="File to export the full debate transcript"
     ),
     interactive: bool = typer.Option(
         False,
         "--interactive",
         "-i",
-        help="Met le débat en pause avant la résolution pour recueillir votre note ou relancer un tour",
+        help="Pauses the debate before resolution to gather your note or start a new round",
     ),
 ):
     if not prompt and not path:
         console.print(
-            "[bold red]Erreur : Vous devez fournir au moins un sujet (prompt) ou un chemin vers un projet (--path).[/bold red]"
+            "[bold red]Error: You must provide at least one topic (prompt) or a path to a project (--path).[/bold red]"
         )
         raise typer.Exit(code=1)
 
@@ -145,12 +145,12 @@ def main(
     if prov_clean in ("copilot", "github"):
         if not (os.getenv("GITHUB_TOKEN") or os.getenv("COPILOT_API_KEY")):
             console.print(
-                "[bold yellow]Attention : GITHUB_TOKEN ou COPILOT_API_KEY n'est pas définie dans l'environnement.[/bold yellow]"
+                "[bold yellow]Warning: GITHUB_TOKEN or COPILOT_API_KEY is not set in the environment.[/bold yellow]"
             )
     elif prov_clean == "gemini":
         if not os.getenv("GEMINI_API_KEY"):
             console.print(
-                "[bold yellow]Attention : GEMINI_API_KEY n'est pas définie dans l'environnement.[/bold yellow]"
+                "[bold yellow]Warning: GEMINI_API_KEY is not set in the environment.[/bold yellow]"
             )
             
     config = None
@@ -158,9 +158,9 @@ def main(
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-                console.print(f"[dim]⚙️  Configuration chargée depuis : {config_file}[/dim]")
+                console.print(f"[dim]⚙️  Configuration loaded from: {config_file}[/dim]")
         except Exception as e:
-            console.print(f"[bold red]Erreur lors du chargement de la configuration {config_file}: {e}[/bold red]")
+            console.print(f"[bold red]Error loading configuration {config_file}: {e}[/bold red]")
             raise typer.Exit(code=1)
             
     if rounds is not None and config:
@@ -168,14 +168,14 @@ def main(
     elif rounds is not None:
         config = {"orchestrator": {"rounds": rounds}}
 
-    user_prompt = prompt or "Analyse et amélioration du projet fourni."
+    user_prompt = prompt or "Analysis and improvement of the provided project."
 
     console.print("[bold cyan]====================================================[/bold cyan]")
-    console.print(f"[bold cyan]  TABLE-RONDE : DEBAT MULTI-AGENTS ({provider.upper()}) [/bold cyan]")
+    console.print(f"[bold cyan]  TABLE-RONDE : MULTI-AGENT DEBATE ({provider.upper()}) [/bold cyan]")
     console.print("[bold cyan]====================================================[/bold cyan]\n")
 
     if path:
-        console.print(f"[dim]📁 Analyse du projet à l'emplacement : {path.resolve()}[/dim]\n")
+        console.print(f"[dim]📁 Analyzing project at path: {path.resolve()}[/dim]\n")
 
     try:
         agents = TableRondeAgents(config=config, provider=provider, model_name=model)
@@ -191,25 +191,25 @@ def main(
         output.write_text(final_plan, encoding="utf-8")
 
         summary_msg = (
-            f"[bold green]✨ Plan d'Implémentation généré avec succès ![/bold green]\n"
-            f"Le fichier a été enregistré dans : [bold white]{output.resolve()}[/bold white]"
+            f"[bold green]✨ Implementation Plan successfully generated![/bold green]\n"
+            f"The file was saved to: [bold white]{output.resolve()}[/bold white]"
         )
 
         if export_transcript:
             full_transcript = result.get("full_transcript", "")
             export_transcript.write_text(full_transcript, encoding="utf-8")
-            summary_msg += f"\n[dim]📝 Transcript exporté dans : {export_transcript.resolve()}[/dim]"
+            summary_msg += f"\n[dim]📝 Transcript exported to: {export_transcript.resolve()}[/dim]"
 
         console.print(
             Panel(
                 summary_msg,
-                title="🎉 Terminé",
+                title="🎉 Finished",
                 border_style="green",
             )
         )
 
     except Exception as e:
-        console.print(f"\n[bold red]Une erreur s'est produite lors de la simulation : {e}[/bold red]")
+        console.print(f"\n[bold red]An error occurred during the simulation: {e}[/bold red]")
         raise typer.Exit(code=1)
 
 

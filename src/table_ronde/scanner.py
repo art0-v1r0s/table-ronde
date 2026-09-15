@@ -119,24 +119,24 @@ def calculate_file_priority(rel_path: Path) -> int:
 def scan_project(project_path: str | Path) -> str:
     root = Path(project_path).resolve()
     if not root.exists():
-        raise ValueError(f"Le chemin spécifié n'existe pas: {project_path}")
+        raise ValueError(f"The specified path does not exist: {project_path}")
 
     if root.is_file():
         try:
             content = root.read_text(encoding="utf-8", errors="ignore")
-            return f"--- Fichier: {root.name} ---\n{content[:MAX_FILE_CHARS]}"
+            return f"--- File: {root.name} ---\n{content[:MAX_FILE_CHARS]}"
         except Exception as e:
-            return f"Erreur de lecture du fichier {root.name}: {e}"
+            return f"Error reading file {root.name}: {e}"
 
     spec = get_gitignore_spec(root)
 
-    tree_lines = [f"Structure du projet : {root.name}/"]
+    tree_lines = [f"Project structure: {root.name}/"]
     scanned_files: list[tuple[int, Path, str]] = []  # (priority, rel_file_path, abs_file_path)
 
     for dirpath, dirnames, filenames in os.walk(root):
         rel_dir = Path(dirpath).relative_to(root)
 
-        # Filtrer dossiers ignorés de base + gitignore
+        # Filter base excluded dirs + gitignore
         filtered_dirs = []
         for d in dirnames:
             if d in EXCLUDE_DIRS or d.startswith("."):
@@ -172,7 +172,7 @@ def scan_project(project_path: str | Path) -> str:
                 prio = calculate_file_priority(rel_file)
                 scanned_files.append((prio, rel_file, file_path))
 
-    # Trier les fichiers par priorité décroissante
+    # Sort files by decreasing priority
     scanned_files.sort(key=lambda item: item[0], reverse=True)
 
     file_contents = []
@@ -185,14 +185,13 @@ def scan_project(project_path: str | Path) -> str:
             content = abs_file.read_text(encoding="utf-8", errors="ignore")
             if content.strip():
                 snippet = content[:MAX_FILE_CHARS]
-                file_contents.append(f"\n--- Fichier ({prio} pts): {rel_file} ---\n{snippet}")
+                file_contents.append(f"\n--- File ({prio} pts): {rel_file} ---\n{snippet}")
                 total_chars += len(snippet)
         except Exception:
             pass
 
-    summary = "\n".join(tree_lines) + "\n\n=== CONTENU DES FICHIERS PRINCIPAUX (Priorités RAG) ===\n" + "\n".join(file_contents)
+    summary = "\n".join(tree_lines) + "\n\n=== MAIN FILE CONTENTS (RAG Priority) ===\n" + "\n".join(file_contents)
     if total_chars >= MAX_TOTAL_CHARS:
-        summary += "\n\n[Attention: Le contenu a été sélectionné intelligemment et tronqué pour respecter la limite de budget]"
+        summary += "\n\n[Warning: Content was intelligently selected and truncated to fit context limits]"
 
     return summary
-

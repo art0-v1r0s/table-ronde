@@ -17,9 +17,9 @@ class Orchestrator:
         human_input_callback: Callable[[], str | None] | None = None,
     ):
         """
-        :param agents: Instance de TableRondeAgents
-        :param on_message_callback: Callback(role, generator) appelé à chaque intervention.
-        :param human_input_callback: Callback() appelé avant la résolution pour recueillir la note de l'utilisateur.
+        :param agents: Instance of TableRondeAgents
+        :param on_message_callback: Callback(role, generator) called at each intervention.
+        :param human_input_callback: Callback() called before resolution to gather user input.
         """
         self.agents = agents
         self.on_message_callback = on_message_callback
@@ -28,7 +28,7 @@ class Orchestrator:
         self.transcript_entries: list[dict[str, str]] = []
 
     def _stream_and_record(self, role: str, instruction: str, title: str) -> str:
-        """Lance stream_agent(), délègue le rendu au callback, enregistre dans le transcript."""
+        """Launches stream_agent(), delegates rendering to callback, and records in transcript."""
         gen = self.agents.stream_agent(role, self.history, instruction)
         if self.on_message_callback:
             full_text = self.on_message_callback(role, gen)
@@ -45,25 +45,25 @@ class Orchestrator:
         self.history.clear()
         self.transcript_entries.clear()
 
-        # 1. Préparation du contexte initial
-        context = f"Sujet / Demande initiale de l'utilisateur :\n{prompt_user}\n"
+        # 1. Initial context setup
+        context = f"Topic / Initial user request:\n{prompt_user}\n"
         if project_path:
             scanned_data = scan_project(project_path)
-            context += f"\n\nContextuel du projet existant ({project_path}) :\n{scanned_data}"
+            context += f"\n\nExisting project context ({project_path}):\n{scanned_data}"
 
         architect_role = self.agents.architect_cfg["role"]
         architect_title = self.agents.architect_cfg["title"]
         
-        # --- PHASE 1 : OUVERTURE ---
+        # --- PHASE 1 : OPENING ---
         architect_intro = self._stream_and_record(
             architect_role,
-            f"Présente l'ouverture de la séance d'audit basée sur ce contexte :\n{context}",
-            f"Ouverture de {architect_title}",
+            f"Present the opening of the audit session based on this context:\n{context}",
+            f"Opening by {architect_title}",
         )
-        self.history.append(HumanMessage(content=f"Contexte du projet :\n{context}"))
+        self.history.append(HumanMessage(content=f"Project Context:\n{context}"))
         self.history.append(AIMessage(content=f"[{architect_title}] {architect_intro}"))
 
-        # --- PHASE 2 : LES TOURS DE DÉBAT ---
+        # --- PHASE 2 : DEBATE ROUNDS ---
         num_rounds = self.agents.config.get("orchestrator", {}).get("rounds", 1)
         
         current_round = 1
@@ -72,54 +72,54 @@ class Orchestrator:
                 role = p["role"]
                 title = p["title"]
                 
-                # Instruction générique pour les débats dynamiques
+                # Generic instruction for dynamic debate
                 instruction = (
-                    "À ton tour de prendre la parole dans ce débat. "
-                    "Exprime tes arguments en fonction de ton rôle et rebondis sur ce qui vient d'être dit par les autres."
+                    "It is your turn to speak in this debate. "
+                    "Express your arguments based on your role and bounce back on what was just said by the others."
                 )
                 
                 resp = self._stream_and_record(
                     role,
                     instruction,
-                    f"Intervention de {title} (Tour {current_round})",
+                    f"Intervention by {title} (Round {current_round})",
                 )
                 self.history.append(AIMessage(content=f"[{title}] {resp}"))
 
-            # --- INTERVENTION UTILISATEUR (MODE INTERACTIF) ---
+            # --- USER INTERVENTION (INTERACTIVE MODE) ---
             if self.human_input_callback:
                 user_note = self.human_input_callback()
                 if user_note:
-                    if user_note.strip().lower() == "/tour":
+                    if user_note.strip().lower() == "/round":
                         num_rounds += 1
                     else:
                         self.history.append(
-                            HumanMessage(content=f"[Note de l'utilisateur] : {user_note}")
+                            HumanMessage(content=f"[User Note] : {user_note}")
                         )
             
             current_round += 1
 
-        # --- PHASE 3 : LA RÉSOLUTION ---
+        # --- PHASE 3 : RESOLUTION ---
         architect_final = self._stream_and_record(
             architect_role,
-            "Fais la synthèse du débat en intégrant les notes éventuelles de l'utilisateur et génère le 'Plan d'Implémentation v2.0' complet en Markdown.",
-            f"Plan d'Implémentation Final ({architect_title})",
+            "Synthesize the debate by integrating any potential user notes and generate the complete 'Implementation Plan v2.0' in Markdown.",
+            f"Final Implementation Plan ({architect_title})",
         )
-        self.history.append(AIMessage(content=f"[{architect_title} - Plan Final] {architect_final}"))
+        self.history.append(AIMessage(content=f"[{architect_title} - Final Plan] {architect_final}"))
 
-        # Construction du transcript complet
+        # Build the full transcript
         transcript_lines = [
-            "# Transcript Complet de la Table-Ronde",
+            "# Complete Roundtable Transcript",
             "",
-            "## 🎯 Sujet initial",
+            "## 🎯 Initial Topic",
             prompt_user,
             "",
             "---",
             "",
-            "## 💬 Débat entre les Agents",
+            "## 💬 Agent Debate",
             "",
         ]
         
-        # Trouver les emojis
+        # Find emojis
         role_emojis = {p["role"]: p.get("emoji", "🤖") for p in self.agents.personas}
         role_emojis[architect_role] = self.agents.architect_cfg.get("emoji", "🏛️")
         
@@ -132,7 +132,7 @@ class Orchestrator:
         full_transcript = "\n".join(transcript_lines)
 
         return {
-            "transcript_summary": "Simulation terminée avec succès.",
+            "transcript_summary": "Simulation finished successfully.",
             "final_plan": architect_final,
             "full_transcript": full_transcript,
         }

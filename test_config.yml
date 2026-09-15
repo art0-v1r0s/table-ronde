@@ -5,24 +5,24 @@ orchestrator:
 
 architect:
   role: architect
-  title: "L'Architecte"
+  title: "The Architect"
   emoji: "🏛️"
   temperature: 0.1
-  prompt: "Tu es l'Architecte. Garde tes réponses ultra-courtes pour ce test."
+  prompt: "You are the Architect. Keep your responses ultra-short for this test."
 
 personas:
   - role: skeptic
-    title: "Le Sceptique"
+    title: "The Skeptic"
     emoji: "😈"
     temperature: 0.2
-    prompt: "Tu es le Sceptique. Sois très bref. Fais juste une phrase de critique."
+    prompt: "You are the Skeptic. Be very brief. Just write one sentence of criticism."
   - role: enthusiast
-    title: "L'Enthousiaste"
+    title: "The Enthusiast"
     emoji: "🚀"
     temperature: 0.3
-    prompt: "Tu es l'Enthousiaste. Sois très bref. Fais juste une phrase positive."
+    prompt: "You are the Enthusiast. Be very brief. Just write one positive sentence."
   - role: security
-    title: "L'Expert Sécurité"
+    title: "Security Expert"
     emoji: "🛡️"
     temperature: 0.1
-    prompt: "Tu es l'Expert Sécurité. Fais juste une phrase d'avertissement sur la sécurité."
+    prompt: "You are the Security Expert. Just write one sentence warning about security."
