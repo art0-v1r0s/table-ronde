@@ -1,10 +1,19 @@
+import json
 from collections.abc import Callable, Generator
 from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessageChunk, HumanMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessageChunk,
+    HumanMessage,
+    ToolMessage,
+    messages_from_dict,
+    messages_to_dict,
+)
 
 from table_ronde.agents import TableRondeAgents
 from table_ronde.scanner import scan_project
+from table_ronde.tools import AVAILABLE_TOOLS
 
 StreamCallback = Callable[[str, Generator[BaseMessageChunk, None, None]], str]
 
@@ -26,45 +35,150 @@ class Orchestrator:
         self.human_input_callback = human_input_callback
         self.history: list[Any] = []
         self.transcript_entries: list[dict[str, str]] = []
+        self.tools_by_name = {t.name: t for t in AVAILABLE_TOOLS}
 
-    def _stream_and_record(self, role: str, instruction: str, title: str) -> str:
-        """Launches stream_agent(), delegates rendering to callback, and records in transcript."""
-        gen = self.agents.stream_agent(role, self.history, instruction)
-        if self.on_message_callback:
-            full_text = self.on_message_callback(role, gen)
-        else:
-            full_text = "".join(
-                chunk.content for chunk in gen if hasattr(chunk, "content")
-            )
-        self.transcript_entries.append({"role": role, "title": title, "content": full_text})
-        return full_text
+    def save_session(self, filepath: str) -> None:
+        """Serializes the history to a JSON file."""
+        data = {
+            "history": messages_to_dict(self.history),
+            "transcript_entries": self.transcript_entries,
+        }
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+    def load_session(self, filepath: str) -> None:
+        """Deserializes the history from a JSON file."""
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.history = messages_from_dict(data.get("history", []))
+        self.transcript_entries = data.get("transcript_entries", [])
+
+    def _stream_and_record(self, role: str, instruction: str | None, title: str) -> str:
+        """Launches stream_agent(), handles tool calls, delegates rendering to callback, and records in transcript."""
+        if instruction:
+            self.history.append(HumanMessage(content=instruction))
+
+        while True:
+            # We stream without passing new_instruction since it's already in history
+            gen = self.agents.stream_agent(role, self.history)
+            
+            tool_call_chunks: list[Any] = []
+            final_content = ""
+            
+            def chunk_interceptor(generator, tc_chunks) -> Generator[BaseMessageChunk, None, None]:
+                nonlocal final_content
+                for chunk in generator:
+                    if chunk.tool_call_chunks:
+                        tc_chunks.extend(chunk.tool_call_chunks)
+                    if hasattr(chunk, "content") and chunk.content:
+                        if isinstance(chunk.content, str):
+                            final_content += chunk.content
+                        elif isinstance(chunk.content, list):
+                            for part in chunk.content:
+                                if isinstance(part, str):
+                                    final_content += part
+                                elif isinstance(part, dict) and "text" in part:
+                                    final_content += part["text"]
+                    yield chunk
+
+            intercepted_gen = chunk_interceptor(gen, tool_call_chunks)
+            
+            if self.on_message_callback:
+                self.on_message_callback(role, intercepted_gen)
+            else:
+                for _ in intercepted_gen:
+                    pass
+                    
+            if not tool_call_chunks:
+                self.transcript_entries.append({"role": role, "title": title, "content": final_content})
+                self.history.append(AIMessage(content=final_content))
+                return final_content
+                
+            # If we get here, the model wanted to call tools
+            import json as json_lib
+            tool_calls = []
+            
+            # Naive merging of tool call chunks
+            calls_by_index = {}
+            for chunk in tool_call_chunks:
+                idx = chunk.get("index")
+                if idx not in calls_by_index:
+                    calls_by_index[idx] = {"name": "", "args": "", "id": chunk.get("id")}
+                if chunk.get("name"):
+                    calls_by_index[idx]["name"] += chunk.get("name")
+                if chunk.get("args"):
+                    calls_by_index[idx]["args"] += chunk.get("args")
+                    
+            # Add AIMessage with tool calls to history
+            ai_message = AIMessage(content="", tool_calls=[])
+            for idx, call_data in calls_by_index.items():
+                try:
+                    args_dict = json_lib.loads(call_data["args"])
+                except Exception:
+                    args_dict = {}
+                tool_call_dict = {
+                    "name": call_data["name"],
+                    "args": args_dict,
+                    "id": call_data["id"] or f"call_{idx}"
+                }
+                # Use ToolCall cast or just dict append. Actually `ToolCall` is a TypedDict.
+                ai_message.tool_calls.append(tool_call_dict) # type: ignore
+                tool_calls.append(tool_call_dict)
+                
+            self.history.append(ai_message)
+            
+            # Execute tools
+            for tc in tool_calls:
+                tool_name = tc["name"]
+                tool_args = tc["args"]
+                if tool_name in self.tools_by_name:
+                    tool_instance = self.tools_by_name[tool_name]
+                    try:
+                        result = tool_instance.invoke(tool_args)
+                    except Exception as e:
+                        result = f"Error executing tool: {e}"
+                else:
+                    result = f"Tool {tool_name} not found."
+                    
+                self.history.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+                
+            # The loop will continue and stream again using the new history with tool results
+            if self.on_message_callback:
+                # Need a little separator if we re-stream in the same UI?
+                # Actually, the loop just calls stream_agent again, triggering a new UI block.
+                # To keep it clean, we might just loop.
+                pass
 
     def run_simulation(
-        self, prompt_user: str, project_path: str | None = None
+        self, prompt_user: str, project_path: str | None = None, is_resume: bool = False, save_path: str | None = None
     ) -> dict[str, str]:
-        self.history.clear()
-        self.transcript_entries.clear()
+        if not is_resume:
+            self.history.clear()
+            self.transcript_entries.clear()
 
-        # 1. Initial context setup
-        context = f"Topic / Initial user request:\n{prompt_user}\n"
-        if project_path:
-            scanned_data = scan_project(project_path)
-            context += f"\n\nExisting project context ({project_path}):\n{scanned_data}"
+            # 1. Initial context setup
+            context = f"Topic / Initial user request:\n{prompt_user}\n"
+            if project_path:
+                scanned_data = scan_project(project_path)
+                context += f"\n\nExisting project context ({project_path}):\n{scanned_data}"
 
-        architect_role = self.agents.architect_cfg["role"]
-        architect_title = self.agents.architect_cfg["title"]
-        
-        # --- PHASE 1 : OPENING ---
-        architect_intro = self._stream_and_record(
-            architect_role,
-            f"Present the opening of the audit session based on this context:\n{context}",
-            f"Opening by {architect_title}",
-        )
-        self.history.append(HumanMessage(content=f"Project Context:\n{context}"))
-        self.history.append(AIMessage(content=f"[{architect_title}] {architect_intro}"))
-
+            architect_role = self.agents.architect_cfg["role"]
+            architect_title = self.agents.architect_cfg["title"]
+            
+            # --- PHASE 1 : OPENING ---
+            self._stream_and_record(
+                architect_role,
+                f"Present the opening of the audit session based on this context:\n{context}",
+                f"Opening by {architect_title}",
+            )
+        else:
+            # We already have history, but we need variables
+            architect_role = self.agents.architect_cfg["role"]
+            architect_title = self.agents.architect_cfg["title"]
+            
         # --- PHASE 2 : DEBATE ROUNDS ---
-        num_rounds = self.agents.config.get("orchestrator", {}).get("rounds", 1)
+        orch_config = self.agents.config.get("orchestrator", {}) if isinstance(self.agents.config, dict) else {}
+        num_rounds = orch_config.get("rounds", 1)
         
         current_round = 1
         while current_round <= num_rounds:
@@ -75,15 +189,15 @@ class Orchestrator:
                 # Generic instruction for dynamic debate
                 instruction = (
                     "It is your turn to speak in this debate. "
-                    "Express your arguments based on your role and bounce back on what was just said by the others."
+                    "Express your arguments based on your role and bounce back on what was just said by the others. "
+                    "Use tools if you need to verify claims or search code/web."
                 )
                 
-                resp = self._stream_and_record(
+                self._stream_and_record(
                     role,
                     instruction,
                     f"Intervention by {title} (Round {current_round})",
                 )
-                self.history.append(AIMessage(content=f"[{title}] {resp}"))
 
             # --- USER INTERVENTION (INTERACTIVE MODE) ---
             if self.human_input_callback:
@@ -96,6 +210,9 @@ class Orchestrator:
                             HumanMessage(content=f"[User Note] : {user_note}")
                         )
             
+            if save_path:
+                self.save_session(save_path)
+            
             current_round += 1
 
         # --- PHASE 3 : RESOLUTION ---
@@ -104,7 +221,9 @@ class Orchestrator:
             "Synthesize the debate by integrating any potential user notes and generate the complete 'Implementation Plan v2.0' in Markdown.",
             f"Final Implementation Plan ({architect_title})",
         )
-        self.history.append(AIMessage(content=f"[{architect_title} - Final Plan] {architect_final}"))
+        
+        if save_path:
+            self.save_session(save_path)
 
         # Build the full transcript
         transcript_lines = [

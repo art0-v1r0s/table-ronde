@@ -1,12 +1,12 @@
-import os
 import logging
+import os
 import socket
 import warnings
-import yaml
 from collections.abc import Callable, Generator
 from pathlib import Path
 
 import typer
+import yaml
 from langchain_core.messages import BaseMessageChunk
 from rich.console import Console
 from rich.live import Live
@@ -134,10 +134,16 @@ def main(
         "-i",
         help="Pauses the debate before resolution to gather your note or start a new round",
     ),
+    save_session: Path | None = typer.Option(
+        None, "--save-session", help="Path to save the debate session state (JSON)"
+    ),
+    resume: Path | None = typer.Option(
+        None, "--resume", help="Path to a saved session JSON to resume from"
+    ),
 ):
-    if not prompt and not path:
+    if not prompt and not path and not resume:
         console.print(
-            "[bold red]Error: You must provide at least one topic (prompt) or a path to a project (--path).[/bold red]"
+            "[bold red]Error: You must provide a topic, a path, or a session to resume.[/bold red]"
         )
         raise typer.Exit(code=1)
 
@@ -176,6 +182,8 @@ def main(
 
     if path:
         console.print(f"[dim]📁 Analyzing project at path: {path.resolve()}[/dim]\n")
+    if resume:
+        console.print(f"[dim]🔄 Resuming session from: {resume.resolve()}[/dim]\n")
 
     try:
         agents = TableRondeAgents(config=config, provider=provider, model_name=model)
@@ -185,7 +193,15 @@ def main(
             human_input_callback=make_human_input_callback(interactive),
         )
 
-        result = orchestrator.run_simulation(user_prompt, project_path=str(path) if path else None)
+        if resume:
+            orchestrator.load_session(str(resume))
+
+        result = orchestrator.run_simulation(
+            user_prompt, 
+            project_path=str(path) if path else None,
+            is_resume=bool(resume),
+            save_path=str(save_session) if save_session else None
+        )
 
         final_plan = result["final_plan"]
         output.write_text(final_plan, encoding="utf-8")

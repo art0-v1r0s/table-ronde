@@ -131,7 +131,7 @@ def scan_project(project_path: str | Path) -> str:
     spec = get_gitignore_spec(root)
 
     tree_lines = [f"Project structure: {root.name}/"]
-    scanned_files: list[tuple[int, Path, str]] = []  # (priority, rel_file_path, abs_file_path)
+    scanned_files: list[tuple[int, Path, Path]] = []  # (priority, rel_file_path, abs_file_path)
 
     for dirpath, dirnames, filenames in os.walk(root):
         rel_dir = Path(dirpath).relative_to(root)

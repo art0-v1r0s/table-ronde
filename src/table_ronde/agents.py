@@ -2,7 +2,6 @@ import os
 from collections.abc import Generator
 from typing import Any
 
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
     BaseMessage,
     BaseMessageChunk,
@@ -12,7 +11,7 @@ from langchain_core.messages import (
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "orchestrator": {
         "rounds": 1,
         "default_provider": "gemini",
@@ -84,13 +83,18 @@ DEFAULT_CONFIG = {
 }
 
 
+from langchain_core.runnables import Runnable
+
+from table_ronde.tools import AVAILABLE_TOOLS
+
+
 def get_llm(
     provider: str = "gemini",
     model_name: str | None = None,
     temperature: float = 0.7,
     api_key: str | None = None,
     base_url: str | None = None,
-) -> BaseChatModel:
+) -> Runnable:
     prov = provider.lower()
     if prov in ("copilot", "github", "openai"):
         model = model_name or "gpt-4o"
@@ -111,7 +115,8 @@ def get_llm(
         kwargs: dict = {"model": model, "temperature": temperature, "api_key": key}
         if endpoint:
             kwargs["base_url"] = endpoint
-        return ChatOpenAI(**kwargs)
+        llm = ChatOpenAI(**kwargs)
+        return llm.bind_tools(AVAILABLE_TOOLS)
     elif prov == "gemini":
         model = model_name or "gemini-3.6-flash"
         key = api_key or os.getenv("GEMINI_API_KEY")
@@ -119,7 +124,8 @@ def get_llm(
             raise ValueError(
                 "Gemini API key not found. Please set the GEMINI_API_KEY environment variable."
             )
-        return ChatGoogleGenerativeAI(model=model, temperature=temperature, google_api_key=key)
+        gemini_llm = ChatGoogleGenerativeAI(model=model, temperature=temperature, google_api_key=key)
+        return gemini_llm.bind_tools(AVAILABLE_TOOLS)
     else:
         raise ValueError(f"Unsupported provider: '{provider}'. Choose 'gemini' or 'copilot'.")
 
@@ -133,7 +139,7 @@ class TableRondeAgents:
         api_key: str | None = None,
         base_url: str | None = None,
     ):
-        self.config = config or DEFAULT_CONFIG
+        self.config: dict[str, Any] = config if config is not None else DEFAULT_CONFIG
         orch_config = self.config.get("orchestrator", {})
         
         self.default_provider = provider or orch_config.get("default_provider", "gemini")
@@ -141,7 +147,7 @@ class TableRondeAgents:
         self.api_key = api_key
         self.base_url = base_url
         
-        self.llms: dict[str, BaseChatModel] = {}
+        self.llms: dict[str, Runnable] = {}
         self.prompts: dict[str, str] = {}
         self.personas: list[dict[str, Any]] = self.config.get("personas", [])
         self.architect_cfg: dict[str, Any] = self.config.get("architect", DEFAULT_CONFIG["architect"])
@@ -167,7 +173,7 @@ class TableRondeAgents:
             base_url=self.base_url
         )
 
-    def _get_llm_for_role(self, role: str) -> BaseChatModel:
+    def _get_llm_for_role(self, role: str) -> Runnable:
         if role not in self.llms:
             raise ValueError(f"Unknown role: {role}")
         return self.llms[role]
@@ -177,19 +183,20 @@ class TableRondeAgents:
             raise ValueError(f"Unknown role: {role}")
         return self.prompts[role]
 
-    def _build_messages(self, role: str, history: list, new_instruction: str) -> list[BaseMessage]:
+    def _build_messages(self, role: str, history: list, new_instruction: str | None = None) -> list[BaseMessage]:
         messages: list[BaseMessage] = [SystemMessage(content=self._get_system_prompt_for_role(role))]
         messages.extend(history)
-        messages.append(HumanMessage(content=new_instruction))
+        if new_instruction:
+            messages.append(HumanMessage(content=new_instruction))
         return messages
 
-    def invoke_agent(self, role: str, history: list, new_instruction: str) -> str:
+    def invoke_agent(self, role: str, history: list, new_instruction: str | None = None) -> str:
         messages = self._build_messages(role, history, new_instruction)
         response = self._get_llm_for_role(role).invoke(messages)
         return str(response.content)
 
     def stream_agent(
-        self, role: str, history: list, new_instruction: str
+        self, role: str, history: list, new_instruction: str | None = None
     ) -> Generator[BaseMessageChunk, None, None]:
         messages = self._build_messages(role, history, new_instruction)
         yield from self._get_llm_for_role(role).stream(messages)

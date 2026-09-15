@@ -8,7 +8,9 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "duckduckgo-search>=8.1.1",
     "langchain>=1.4.0",
+    "langchain-community>=0.4.2",
     "langchain-google-genai>=4.4.0",
     "langchain-openai>=1.6.2",
     "pathspec>=1.1.1",
@@ -27,8 +29,11 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "mypy>=2.3.1",
     "pytest>=9.1.1",
+    "pytest-mock>=3.15.1",
     "ruff>=0.16.7",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.ruff.lint]
