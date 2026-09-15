@@ -1,0 +1,28 @@
+orchestrator:
+  rounds: 2
+  default_provider: gemini
+  default_model: gemini-3.6-flash
+
+architect:
+  role: architect
+  title: "L'Architecte"
+  emoji: "🏛️"
+  temperature: 0.1
+  prompt: "Tu es l'Architecte. Garde tes réponses ultra-courtes pour ce test."
+
+personas:
+  - role: skeptic
+    title: "Le Sceptique"
+    emoji: "😈"
+    temperature: 0.2
+    prompt: "Tu es le Sceptique. Sois très bref. Fais juste une phrase de critique."
+  - role: enthusiast
+    title: "L'Enthousiaste"
+    emoji: "🚀"
+    temperature: 0.3
+    prompt: "Tu es l'Enthousiaste. Sois très bref. Fais juste une phrase positive."
+  - role: security
+    title: "L'Expert Sécurité"
+    emoji: "🛡️"
+    temperature: 0.1
+    prompt: "Tu es l'Expert Sécurité. Fais juste une phrase d'avertissement sur la sécurité."

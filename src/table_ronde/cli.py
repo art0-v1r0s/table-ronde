@@ -2,6 +2,7 @@ import os
 import logging
 import socket
 import warnings
+import yaml
 from collections.abc import Callable, Generator
 from pathlib import Path
 
@@ -34,25 +35,27 @@ app = typer.Typer(
 )
 console = Console()
 
-ROLE_STYLES: dict[str, tuple[str, str]] = {
-    "architect": ("🏛️ Agent 3 : L'Architecte", "bold blue"),
-    "skeptic": ("😈 Agent 1 : Le Sceptique", "bold red"),
-    "enthusiast": ("🚀 Agent 2 : L'Enthousiaste", "bold green"),
-}
+def get_role_style(role: str, agents_cfg: TableRondeAgents) -> tuple[str, str]:
+    if role == agents_cfg.architect_cfg.get("role"):
+        title = agents_cfg.architect_cfg.get("title", f"Agent ({role})")
+        emoji = agents_cfg.architect_cfg.get("emoji", "🏛️")
+        return (f"{emoji} {title}", "bold blue")
+    
+    colors = ["bold red", "bold green", "bold magenta", "bold yellow", "bold cyan"]
+    for idx, p in enumerate(agents_cfg.personas):
+        if p["role"] == role:
+            title = p.get("title", f"Agent ({role})")
+            emoji = p.get("emoji", "🤖")
+            color = colors[idx % len(colors)]
+            return (f"{emoji} {title}", color)
+            
+    return (f"Agent ({role})", "white")
 
 
-def render_agent_message(role: str, content: str):
-    title, border_style = ROLE_STYLES.get(role, (f"Agent ({role})", "white"))
-    md = Markdown(content)
-    panel = Panel(md, title=title, border_style=border_style, padding=(1, 2))
-    console.print(panel)
-    console.print()
-
-
-def make_stream_callback() -> StreamCallback:
+def make_stream_callback(agents: TableRondeAgents) -> StreamCallback:
     """Crée le callback de streaming : affiche en temps réel avec rich.Live."""
     def stream_callback(role: str, gen: Generator[BaseMessageChunk, None, None]) -> str:
-        title, border_style = ROLE_STYLES.get(role, (f"Agent ({role})", "white"))
+        title, border_style = get_role_style(role, agents)
         content = ""
         try:
             with Live(
@@ -89,7 +92,7 @@ def make_human_input_callback(interactive: bool) -> Callable[[], str | None] | N
     def ask() -> str | None:
         console.print()
         note = Prompt.ask(
-            "[bold yellow]💬 Votre note pour l'Architecte avant la résolution finale[/bold yellow] (Entrée pour ignorer)",
+            "[bold yellow]💬 Votre note pour l'Architecte (ou '/tour' pour refaire un tour de débat)[/bold yellow]\n(Entrée pour ignorer)",
             default="",
             console=console,
         )
@@ -110,11 +113,17 @@ def main(
     output: Path = typer.Option(
         Path("plan_v2.md"), "--output", "-o", help="Fichier de sortie pour le plan final"
     ),
+    config_file: Path | None = typer.Option(
+        None, "--config", "-c", help="Fichier YAML de configuration des personas et modèles"
+    ),
+    rounds: int | None = typer.Option(
+        None, "--rounds", "-r", help="Nombre de tours de débat (surcharge la config)"
+    ),
     provider: str = typer.Option(
         "gemini", "--provider", "-pr", help="Fournisseur LLM ('gemini' ou 'copilot' / 'github')"
     ),
     model: str | None = typer.Option(
-        None, "--model", "-m", help="Modèle à utiliser (ex: 'gemini-2.5-flash' ou 'gpt-4o')"
+        None, "--model", "-m", help="Modèle à utiliser par défaut (ex: 'gemini-3.6-flash' ou 'gpt-4o')"
     ),
     export_transcript: Path | None = typer.Option(
         None, "--export-transcript", "-t", help="Fichier pour exporter le transcript complet du débat"
@@ -123,7 +132,7 @@ def main(
         False,
         "--interactive",
         "-i",
-        help="Met le débat en pause avant la résolution pour recueillir votre note",
+        help="Met le débat en pause avant la résolution pour recueillir votre note ou relancer un tour",
     ),
 ):
     if not prompt and not path:
@@ -143,6 +152,21 @@ def main(
             console.print(
                 "[bold yellow]Attention : GEMINI_API_KEY n'est pas définie dans l'environnement.[/bold yellow]"
             )
+            
+    config = None
+    if config_file:
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                console.print(f"[dim]⚙️  Configuration chargée depuis : {config_file}[/dim]")
+        except Exception as e:
+            console.print(f"[bold red]Erreur lors du chargement de la configuration {config_file}: {e}[/bold red]")
+            raise typer.Exit(code=1)
+            
+    if rounds is not None and config:
+        config.setdefault("orchestrator", {})["rounds"] = rounds
+    elif rounds is not None:
+        config = {"orchestrator": {"rounds": rounds}}
 
     user_prompt = prompt or "Analyse et amélioration du projet fourni."
 
@@ -154,10 +178,10 @@ def main(
         console.print(f"[dim]📁 Analyse du projet à l'emplacement : {path.resolve()}[/dim]\n")
 
     try:
-        agents = TableRondeAgents(provider=provider, model_name=model)
+        agents = TableRondeAgents(config=config, provider=provider, model_name=model)
         orchestrator = Orchestrator(
             agents,
-            on_message_callback=make_stream_callback(),
+            on_message_callback=make_stream_callback(agents),
             human_input_callback=make_human_input_callback(interactive),
         )
 
@@ -191,4 +215,3 @@ def main(
 
 if __name__ == "__main__":
     app()
-
