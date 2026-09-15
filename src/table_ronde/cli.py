@@ -1,5 +1,7 @@
 import os
 import logging
+import socket
+import warnings
 from collections.abc import Callable, Generator
 from pathlib import Path
 
@@ -12,8 +14,16 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
-# Suppress google-genai AFC warnings
+# Optimisation réseau : Forcer IPv4 pour éviter le timeout IPv6 de 80s (blackholing)
+old_getaddrinfo = socket.getaddrinfo
+def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [response for response in responses if response[0] == socket.AF_INET]
+socket.getaddrinfo = new_getaddrinfo
+
+# Supprimer les avertissements inutiles
 logging.getLogger("google_genai.models").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", message=".*fixed sampling defaults.*")
 
 from table_ronde.agents import TableRondeAgents
 from table_ronde.orchestrator import Orchestrator, StreamCallback
@@ -52,7 +62,15 @@ def make_stream_callback() -> StreamCallback:
             ) as live:
                 for chunk in gen:
                     if hasattr(chunk, "content") and chunk.content:
-                        content += chunk.content
+                        if isinstance(chunk.content, str):
+                            content += chunk.content
+                        elif isinstance(chunk.content, list):
+                            for part in chunk.content:
+                                if isinstance(part, str):
+                                    content += part
+                                elif isinstance(part, dict) and "text" in part:
+                                    content += part["text"]
+                        
                         live.update(Panel(Text(content), title=title, border_style=border_style, padding=(1, 2)))
         except Exception as e:
             console.print(f"[yellow]⚠️ Stream interrompu ({e}), réponse partielle conservée.[/yellow]")
