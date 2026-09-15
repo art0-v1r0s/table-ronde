@@ -57,7 +57,7 @@ def get_llm(
             kwargs["base_url"] = endpoint
         return ChatOpenAI(**kwargs)
     elif prov == "gemini":
-        model = model_name or "gemini-2.5-flash"
+        model = model_name or "gemini-3.6-flash"
         key = api_key or os.getenv("GEMINI_API_KEY")
         if not key:
             raise ValueError(

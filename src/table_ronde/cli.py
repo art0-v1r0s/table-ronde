@@ -1,4 +1,5 @@
 import os
+import logging
 from collections.abc import Callable, Generator
 from pathlib import Path
 
@@ -10,6 +11,9 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
+
+# Suppress google-genai AFC warnings
+logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 from table_ronde.agents import TableRondeAgents
 from table_ronde.orchestrator import Orchestrator, StreamCallback
