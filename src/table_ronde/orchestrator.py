@@ -1,31 +1,43 @@
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessageChunk, HumanMessage
 
 from table_ronde.agents import TableRondeAgents
 from table_ronde.scanner import scan_project
+
+StreamCallback = Callable[[str, Generator[BaseMessageChunk, None, None]], str]
 
 
 class Orchestrator:
     def __init__(
         self,
         agents: TableRondeAgents,
-        on_message_callback: Callable[[str, str], None] | None = None,
+        on_message_callback: StreamCallback | None = None,
+        human_input_callback: Callable[[], str | None] | None = None,
     ):
         """
         :param agents: Instance de TableRondeAgents
-        :param on_message_callback: Callback(role, text) appelé à chaque intervention d'un agent.
+        :param on_message_callback: Callback(role, generator) appelé à chaque intervention d'un agent pour streamer la réponse.
+        :param human_input_callback: Callback() appelé avant la résolution pour recueillir la note de l'utilisateur.
         """
         self.agents = agents
         self.on_message_callback = on_message_callback
+        self.human_input_callback = human_input_callback
         self.history: list[Any] = []
         self.transcript_entries: list[dict[str, str]] = []
 
-    def _notify(self, role: str, message: str, title: str):
-        self.transcript_entries.append({"role": role, "title": title, "content": message})
+    def _stream_and_record(self, role: str, instruction: str, title: str) -> str:
+        """Lance stream_agent(), délègue le rendu au callback, enregistre dans le transcript."""
+        gen = self.agents.stream_agent(role, self.history, instruction)
         if self.on_message_callback:
-            self.on_message_callback(role, message)
+            full_text = self.on_message_callback(role, gen)
+        else:
+            full_text = "".join(
+                chunk.content for chunk in gen if hasattr(chunk, "content")
+            )
+        self.transcript_entries.append({"role": role, "title": title, "content": full_text})
+        return full_text
 
     def run_simulation(
         self, prompt_user: str, project_path: str | None = None
@@ -40,55 +52,57 @@ class Orchestrator:
             context += f"\n\nContextuel du projet existant ({project_path}) :\n{scanned_data}"
 
         # --- PHASE 1 : L'AUDIT ---
-        architect_intro = self.agents.invoke_agent(
+        architect_intro = self._stream_and_record(
             "architect",
-            self.history,
             f"Présente l'ouverture de la séance d'audit basée sur ce contexte :\n{context}",
+            "Ouverture de l'Architecte",
         )
-        self._notify("architect", architect_intro, "Ouverture de l'Architecte")
         self.history.append(HumanMessage(content=f"Contexte du projet :\n{context}"))
         self.history.append(AIMessage(content=f"[Architecte] {architect_intro}"))
 
-        skeptic_audit = self.agents.invoke_agent(
+        skeptic_audit = self._stream_and_record(
             "skeptic",
-            self.history,
             "Fais une critique incisive et identifie les failles majeures du projet présenté.",
+            "Audit du Sceptique",
         )
-        self._notify("skeptic", skeptic_audit, "Audit du Sceptique")
         self.history.append(AIMessage(content=f"[Sceptique] {skeptic_audit}"))
 
-        enthusiast_audit = self.agents.invoke_agent(
+        enthusiast_audit = self._stream_and_record(
             "enthusiast",
-            self.history,
             "Réponds aux attaques du Sceptique, défends la vision et propose des ajouts innovants.",
+            "Vision de l'Enthousiaste",
         )
-        self._notify("enthusiast", enthusiast_audit, "Vision de l'Enthousiaste")
         self.history.append(AIMessage(content=f"[Enthousiaste] {enthusiast_audit}"))
 
         # --- PHASE 2 : LE CHOC DES IDÉES ---
-        skeptic_rebuttal = self.agents.invoke_agent(
+        skeptic_rebuttal = self._stream_and_record(
             "skeptic",
-            self.history,
             "Attaque spécifiquement les propositions de l'Enthousiaste et pointe du doigt les risques techniques/complexité.",
+            "Réfutation du Sceptique",
         )
-        self._notify("skeptic", skeptic_rebuttal, "Réfutation du Sceptique")
         self.history.append(AIMessage(content=f"[Sceptique] {skeptic_rebuttal}"))
 
-        enthusiast_rebuttal = self.agents.invoke_agent(
+        enthusiast_rebuttal = self._stream_and_record(
             "enthusiast",
-            self.history,
             "Propose des solutions aux réserves du Sceptique et montre le chemin le plus court vers la livraison.",
+            "Contre-propositions de l'Enthousiaste",
         )
-        self._notify("enthusiast", enthusiast_rebuttal, "Contre-propositions de l'Enthousiaste")
         self.history.append(AIMessage(content=f"[Enthousiaste] {enthusiast_rebuttal}"))
 
+        # --- INTERVENTION UTILISATEUR (MODE INTERACTIF) ---
+        if self.human_input_callback:
+            user_note = self.human_input_callback()
+            if user_note:
+                self.history.append(
+                    HumanMessage(content=f"[Note de l'utilisateur] : {user_note}")
+                )
+
         # --- PHASE 3 : LA RÉSOLUTION ---
-        architect_final = self.agents.invoke_agent(
+        architect_final = self._stream_and_record(
             "architect",
-            self.history,
             "Fais la synthèse du débat et génère le 'Plan d'Implémentation v2.0' complet en Markdown.",
+            "Plan d'Implémentation Final (Architecte)",
         )
-        self._notify("architect", architect_final, "Plan d'Implémentation Final (Architecte)")
         self.history.append(AIMessage(content=f"[Architecte - Plan Final] {architect_final}"))
 
         # Construction du transcript complet

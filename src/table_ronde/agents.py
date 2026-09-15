@@ -1,7 +1,13 @@
 import os
+from collections.abc import Generator
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import (
+    BaseMessage,
+    BaseMessageChunk,
+    HumanMessage,
+    SystemMessage,
+)
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
@@ -81,23 +87,40 @@ class TableRondeAgents:
             provider=provider, model_name=model_name, temperature=0.3, api_key=api_key, base_url=base_url
         )
 
-    def invoke_agent(self, role: str, history: list, new_instruction: str) -> str:
-        if role == "skeptic":
-            system_prompt = SKEPTIC_SYSTEM_PROMPT
-            llm = self.skeptic_llm
-        elif role == "enthusiast":
-            system_prompt = ENTHUSIAST_SYSTEM_PROMPT
-            llm = self.enthusiast_llm
-        elif role == "architect":
-            system_prompt = ARCHITECT_SYSTEM_PROMPT
-            llm = self.architect_llm
-        else:
+    def _get_llm_for_role(self, role: str) -> BaseChatModel:
+        mapping = {
+            "skeptic": self.skeptic_llm,
+            "enthusiast": self.enthusiast_llm,
+            "architect": self.architect_llm,
+        }
+        if role not in mapping:
             raise ValueError(f"Rôle inconnu : {role}")
+        return mapping[role]
 
-        messages = [SystemMessage(content=system_prompt)]
+    def _get_system_prompt_for_role(self, role: str) -> str:
+        mapping = {
+            "skeptic": SKEPTIC_SYSTEM_PROMPT,
+            "enthusiast": ENTHUSIAST_SYSTEM_PROMPT,
+            "architect": ARCHITECT_SYSTEM_PROMPT,
+        }
+        if role not in mapping:
+            raise ValueError(f"Rôle inconnu : {role}")
+        return mapping[role]
+
+    def _build_messages(self, role: str, history: list, new_instruction: str) -> list[BaseMessage]:
+        messages: list[BaseMessage] = [SystemMessage(content=self._get_system_prompt_for_role(role))]
         messages.extend(history)
         messages.append(HumanMessage(content=new_instruction))
+        return messages
 
-        response = llm.invoke(messages)
+    def invoke_agent(self, role: str, history: list, new_instruction: str) -> str:
+        messages = self._build_messages(role, history, new_instruction)
+        response = self._get_llm_for_role(role).invoke(messages)
         return str(response.content)
+
+    def stream_agent(
+        self, role: str, history: list, new_instruction: str
+    ) -> Generator[BaseMessageChunk, None, None]:
+        messages = self._build_messages(role, history, new_instruction)
+        yield from self._get_llm_for_role(role).stream(messages)
 

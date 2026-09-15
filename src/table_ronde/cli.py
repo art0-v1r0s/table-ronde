@@ -1,13 +1,18 @@
 import os
+from collections.abc import Callable, Generator
 from pathlib import Path
 
 import typer
+from langchain_core.messages import BaseMessageChunk
 from rich.console import Console
+from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.prompt import Prompt
+from rich.text import Text
 
 from table_ronde.agents import TableRondeAgents
-from table_ronde.orchestrator import Orchestrator
+from table_ronde.orchestrator import Orchestrator, StreamCallback
 
 app = typer.Typer(
     name="table-ronde",
@@ -15,25 +20,61 @@ app = typer.Typer(
 )
 console = Console()
 
+ROLE_STYLES: dict[str, tuple[str, str]] = {
+    "architect": ("🏛️ Agent 3 : L'Architecte", "bold blue"),
+    "skeptic": ("😈 Agent 1 : Le Sceptique", "bold red"),
+    "enthusiast": ("🚀 Agent 2 : L'Enthousiaste", "bold green"),
+}
+
 
 def render_agent_message(role: str, content: str):
-    if role == "architect":
-        title = "🏛️ Agent 3 : L'Architecte"
-        border_style = "bold blue"
-    elif role == "skeptic":
-        title = "😈 Agent 1 : Le Sceptique"
-        border_style = "bold red"
-    elif role == "enthusiast":
-        title = "🚀 Agent 2 : L'Enthousiaste"
-        border_style = "bold green"
-    else:
-        title = f"Agent ({role})"
-        border_style = "white"
-
+    title, border_style = ROLE_STYLES.get(role, (f"Agent ({role})", "white"))
     md = Markdown(content)
     panel = Panel(md, title=title, border_style=border_style, padding=(1, 2))
     console.print(panel)
     console.print()
+
+
+def make_stream_callback() -> StreamCallback:
+    """Crée le callback de streaming : affiche en temps réel avec rich.Live."""
+    def stream_callback(role: str, gen: Generator[BaseMessageChunk, None, None]) -> str:
+        title, border_style = ROLE_STYLES.get(role, (f"Agent ({role})", "white"))
+        content = ""
+        try:
+            with Live(
+                Panel(Text("…"), title=title, border_style=border_style, padding=(1, 2)),
+                refresh_per_second=15,
+                console=console,
+            ) as live:
+                for chunk in gen:
+                    if hasattr(chunk, "content") and chunk.content:
+                        content += chunk.content
+                        live.update(Panel(Text(content), title=title, border_style=border_style, padding=(1, 2)))
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Stream interrompu ({e}), réponse partielle conservée.[/yellow]")
+
+        console.print(Panel(Markdown(content), title=title, border_style=border_style, padding=(1, 2)))
+        console.print()
+        return content
+
+    return stream_callback
+
+
+def make_human_input_callback(interactive: bool) -> Callable[[], str | None] | None:
+    if not interactive:
+        return None
+
+    def ask() -> str | None:
+        console.print()
+        note = Prompt.ask(
+            "[bold yellow]💬 Votre note pour l'Architecte avant la résolution finale[/bold yellow] (Entrée pour ignorer)",
+            default="",
+            console=console,
+        )
+        console.print()
+        return note.strip() or None
+
+    return ask
 
 
 @app.command()
@@ -55,6 +96,12 @@ def main(
     ),
     export_transcript: Path | None = typer.Option(
         None, "--export-transcript", "-t", help="Fichier pour exporter le transcript complet du débat"
+    ),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive",
+        "-i",
+        help="Met le débat en pause avant la résolution pour recueillir votre note",
     ),
 ):
     if not prompt and not path:
@@ -86,10 +133,13 @@ def main(
 
     try:
         agents = TableRondeAgents(provider=provider, model_name=model)
-        orchestrator = Orchestrator(agents, on_message_callback=render_agent_message)
+        orchestrator = Orchestrator(
+            agents,
+            on_message_callback=make_stream_callback(),
+            human_input_callback=make_human_input_callback(interactive),
+        )
 
-        with console.status("[bold yellow]La Table-Ronde débute ses échanges...[/bold yellow]"):
-            result = orchestrator.run_simulation(user_prompt, project_path=str(path) if path else None)
+        result = orchestrator.run_simulation(user_prompt, project_path=str(path) if path else None)
 
         final_plan = result["final_plan"]
         output.write_text(final_plan, encoding="utf-8")

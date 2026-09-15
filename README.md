@@ -19,6 +19,8 @@
 ## ⚡ Caractéristiques
 
 - **Multi-fournisseurs LLM** : Support natif de **Google Gemini** (`gemini-2.5-flash`) et **GitHub Copilot / GitHub Models / OpenAI** (`gpt-4o`).
+- **Streaming en temps réel** : Affichage fluide chunk par chunk des réflexions de chaque agent avec `rich.Live`.
+- **Mode Interactif (Human-in-the-Loop)** : Possibilité d'intervenir et d'orienter l'Architecte avec une note personnelle avant la résolution finale (`--interactive`).
 - **Analyse de codebase** : Scanner de projet intelligent intégrant le filtrage `.gitignore` via `pathspec`.
 - **Débat en 3 phases** :
   1. **Phase 1 : Audit** (Ouverture de l'Architecte, audit incisif du Sceptique, vision de l'Enthousiaste).
@@ -84,7 +86,14 @@ uv run table-ronde --path /chemin/vers/mon-projet "Optimiser la sécurité et la
 uv run table-ronde --provider copilot --model gpt-4o "Évaluer la transition vers une architecture Serverless"
 ```
 
-### 4. Options CLI complètes
+### 4. Mode interactif (Human-in-the-loop)
+
+```bash
+uv run table-ronde --interactive "Moderniser notre architecture de pipeline de données"
+```
+*Le débat s'interrompt avant la Phase 3 pour vous permettre d'insérer vos directives à l'Architecte.*
+
+### 5. Options CLI complètes
 
 ```bash
 uv run table-ronde [OPTIONS] [PROMPT]
@@ -97,6 +106,7 @@ uv run table-ronde [OPTIONS] [PROMPT]
 | `--provider` | `-pr` | Fournisseur LLM (`gemini`, `copilot`, `github`, `openai`) | `gemini` |
 | `--model` | `-m` | Modèle spécifique à utiliser (ex: `gemini-2.5-flash`, `gpt-4o`) | Auto selon provider |
 | `--export-transcript` | `-t` | Chemin du fichier pour exporter l'intégralité du débat | `None` |
+| `--interactive` | `-i` | Pause avant la résolution pour injecter votre note | `False` |
 
 ---
 

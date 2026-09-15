@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -32,3 +32,19 @@ def test_table_ronde_agents_init():
         agents = TableRondeAgents(provider="copilot", api_key="test-key")
         assert mock_get_llm.call_count == 3
         assert agents.provider == "copilot"
+
+
+def test_stream_agent_yields_chunks():
+    with patch("table_ronde.agents.get_llm") as mock_get_llm:
+        mock_llm = MagicMock()
+        mock_llm.stream.return_value = iter([
+            MagicMock(content="Hello "),
+            MagicMock(content="World"),
+        ])
+        mock_get_llm.return_value = mock_llm
+
+        agents = TableRondeAgents(provider="gemini", api_key="fake-key")
+        chunks = list(agents.stream_agent("skeptic", [], "Test"))
+        assert len(chunks) == 2
+        assert chunks[0].content == "Hello "
+        assert chunks[1].content == "World"
