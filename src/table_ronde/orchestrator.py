@@ -24,15 +24,18 @@ class Orchestrator:
         agents: TableRondeAgents,
         on_message_callback: StreamCallback | None = None,
         human_input_callback: Callable[[], str | None] | None = None,
+        on_phase_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ):
         """
         :param agents: Instance of TableRondeAgents
         :param on_message_callback: Callback(role, generator) called at each intervention.
         :param human_input_callback: Callback() called before resolution to gather user input.
+        :param on_phase_callback: Callback(phase_name, data_dict) called during phase transitions.
         """
         self.agents = agents
         self.on_message_callback = on_message_callback
         self.human_input_callback = human_input_callback
+        self.on_phase_callback = on_phase_callback
         self.history: list[Any] = []
         self.transcript_entries: list[dict[str, str]] = []
         self.tools_by_name = {t.name: t for t in AVAILABLE_TOOLS}
@@ -131,6 +134,8 @@ class Orchestrator:
             for tc in tool_calls:
                 tool_name = tc["name"]
                 tool_args = tc["args"]
+                if self.on_phase_callback:
+                    self.on_phase_callback("tool_call", {"name": tool_name, "args": str(tool_args)[:80]})
                 if tool_name in self.tools_by_name:
                     tool_instance = self.tools_by_name[tool_name]
                     try:
@@ -166,6 +171,8 @@ class Orchestrator:
             architect_title = self.agents.architect_cfg["title"]
             
             # --- PHASE 1 : OPENING ---
+            if self.on_phase_callback:
+                self.on_phase_callback("opening", {"architect": architect_title})
             self._stream_and_record(
                 architect_role,
                 f"Present the opening of the audit session based on this context:\n{context}",
@@ -182,6 +189,8 @@ class Orchestrator:
         
         current_round = 1
         while current_round <= num_rounds:
+            if self.on_phase_callback:
+                self.on_phase_callback("round", {"current": current_round, "total": num_rounds})
             for p in self.agents.personas:
                 role = p["role"]
                 title = p["title"]
@@ -216,6 +225,8 @@ class Orchestrator:
             current_round += 1
 
         # --- PHASE 3 : RESOLUTION ---
+        if self.on_phase_callback:
+            self.on_phase_callback("resolution", {"architect": architect_title})
         architect_final = self._stream_and_record(
             architect_role,
             "Synthesize the debate by integrating any potential user notes and generate the complete 'Implementation Plan v2.0' in Markdown.",

@@ -1,76 +1,66 @@
 import logging
 import os
 import socket
+import time
 import warnings
 from collections.abc import Callable, Generator
 from pathlib import Path
+from typing import Any
 
 import typer
 import yaml
 from langchain_core.messages import BaseMessageChunk
-from rich.console import Console
-from rich.live import Live
-from rich.markdown import Markdown
-from rich.panel import Panel
 from rich.prompt import Prompt
-from rich.text import Text
+from rich.rule import Rule
 
 # Network optimization: Force IPv4 to prevent 80s IPv6 timeout (blackholing)
 old_getaddrinfo = socket.getaddrinfo
+
+
 def new_getaddrinfo(*args, **kwargs):
     responses = old_getaddrinfo(*args, **kwargs)
     return [response for response in responses if response[0] == socket.AF_INET]
+
+
 socket.getaddrinfo = new_getaddrinfo
 
 # Suppress unnecessary warnings
 logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", message=".*fixed sampling defaults.*")
 
+from table_ronde import ui
 from table_ronde.agents import TableRondeAgents
-from table_ronde.orchestrator import Orchestrator, StreamCallback
+from table_ronde.menu import run_interactive_menu
+from table_ronde.orchestrator import Orchestrator
 
 app = typer.Typer(
     name="table-ronde",
-    help="Multi-agent orchestrator to debate and design implementation plans v2.0 / v3.0",
+    help="Dynamic multi-agent orchestrator to debate and design implementation plans",
 )
-console = Console()
-
-def get_role_style(role: str, agents_cfg: TableRondeAgents) -> tuple[str, str]:
-    if role == agents_cfg.architect_cfg.get("role"):
-        title = agents_cfg.architect_cfg.get("title", f"Agent ({role})")
-        emoji = agents_cfg.architect_cfg.get("emoji", "🏛️")
-        return (f"{emoji} {title}", "bold blue")
-    
-    colors = ["bold red", "bold green", "bold magenta", "bold yellow", "bold cyan"]
-    for idx, p in enumerate(agents_cfg.personas):
-        if p["role"] == role:
-            title = p.get("title", f"Agent ({role})")
-            emoji = p.get("emoji", "🤖")
-            color = colors[idx % len(colors)]
-            return (f"{emoji} {title}", color)
-            
-    return (f"Agent ({role})", "white")
 
 
 def make_stream_callback(agents: TableRondeAgents) -> Callable:
-    def callback(role: str, gen) -> str:
-        # We need to map role -> title, emoji
+    def callback(role: str, gen: Generator[BaseMessageChunk, None, None]) -> str:
         title = role
         emoji = "🤖"
-        if role == agents.architect_cfg["role"]:
+        agent_index = 0
+
+        if role == agents.architect_cfg.get("role"):
             title = agents.architect_cfg.get("title", "Architect")
             emoji = agents.architect_cfg.get("emoji", "🏛️")
         else:
-            for p in agents.personas:
+            for idx, p in enumerate(agents.personas):
                 if p["role"] == role:
                     title = p.get("title", role)
                     emoji = p.get("emoji", "🤖")
+                    agent_index = idx
                     break
 
+        panel = ui.AgentStreamPanel(title=title, emoji=emoji, role=role, agent_index=agent_index)
         full_text = ""
-        live = None
 
         try:
+            panel.start()
             for chunk in gen:
                 if hasattr(chunk, "content") and chunk.content:
                     if isinstance(chunk.content, str):
@@ -81,30 +71,27 @@ def make_stream_callback(agents: TableRondeAgents) -> Callable:
                                 full_text += part
                             elif isinstance(part, dict) and "text" in part:
                                 full_text += part["text"]
-
-                    if full_text.strip() and live is None:
-                        panel = Panel(
-                            Markdown(full_text),
-                            title=f"{emoji} {title}",
-                            border_style="blue",
-                            padding=(1, 2),
-                        )
-                        live = Live(panel, refresh_per_second=10)
-                        live.start()
-
-                    if live:
-                        panel = Panel(
-                            Markdown(full_text),
-                            title=f"{emoji} {title}",
-                            border_style="blue",
-                            padding=(1, 2),
-                        )
-                        live.update(panel)
+                    panel.update(full_text)
         finally:
-            if live:
-                live.stop()
+            panel.finish()
 
         return full_text
+
+    return callback
+
+
+def make_phase_callback() -> Callable[[str, dict[str, Any]], None]:
+    def callback(phase: str, data: dict[str, Any]) -> None:
+        if phase == "opening":
+            architect_name = data.get("architect", "Architect")
+            ui.print_phase_header("⚡ PHASE 1 — OPENING", f"{architect_name} sets the stage")
+        elif phase == "round":
+            ui.print_round_header(data["current"], data["total"])
+        elif phase == "resolution":
+            architect_name = data.get("architect", "Architect")
+            ui.print_phase_header("🏁 PHASE 3 — RESOLUTION", f"{architect_name} synthesizes the final plan")
+        elif phase == "tool_call":
+            ui.print_tool_call(data["name"], data.get("args", ""))
 
     return callback
 
@@ -114,13 +101,15 @@ def make_human_input_callback(interactive: bool) -> Callable[[], str | None] | N
         return None
 
     def ask() -> str | None:
-        console.print()
+        ui.console.print()
+        ui.console.print(Rule(" 💬 Human-in-the-Loop 💬 ", style="bold yellow"))
         note = Prompt.ask(
-            "[bold yellow]💬 Your note for the Architect (or '/round' for another debate round)[/bold yellow]\n(Press Enter to skip)",
+            "[bold yellow]Your note for the Architect (or '/round' for another debate round)[/bold yellow]\n"
+            "[dim](Press Enter to proceed without notes)[/dim]",
             default="",
-            console=console,
+            console=ui.console,
         )
-        console.print()
+        ui.console.print()
         return note.strip() or None
 
     return ask
@@ -144,7 +133,7 @@ def main(
         None, "--rounds", "-r", help="Number of debate rounds (overrides config)"
     ),
     provider: str = typer.Option(
-        "gemini", "--provider", "-pr", help="LLM Provider ('gemini' or 'copilot' / 'github')"
+        "gemini", "--provider", "-pr", help="LLM Provider ('gemini', 'openai', or 'copilot' / 'github')"
     ),
     model: str | None = typer.Option(
         None, "--model", "-m", help="Default model to use (e.g., 'gemini-3.6-flash' or 'gpt-4o')"
@@ -165,8 +154,26 @@ def main(
         None, "--resume", help="Path to a saved session JSON to resume from"
     ),
 ):
+    # ── Interactive menu when launched with zero parameters ──
+    if not prompt and not path and not resume and not config_file:
+        try:
+            menu_opts = run_interactive_menu()
+        except (KeyboardInterrupt, SystemExit):
+            raise typer.Exit(code=0)
+
+        prompt = menu_opts["prompt"]
+        provider = menu_opts["provider"]
+        rounds = menu_opts["rounds"]
+        interactive = menu_opts["interactive"]
+        if menu_opts.get("path"):
+            path = Path(menu_opts["path"])
+        if menu_opts.get("config_file"):
+            config_file = Path(menu_opts["config_file"])
+        if menu_opts.get("output"):
+            output = Path(menu_opts["output"])
+
     if not prompt and not path and not resume:
-        console.print(
+        ui.console.print(
             "[bold red]Error: You must provide a topic, a path, or a session to resume.[/bold red]"
         )
         raise typer.Exit(code=1)
@@ -174,25 +181,30 @@ def main(
     prov_clean = provider.lower()
     if prov_clean in ("copilot", "github"):
         if not (os.getenv("GITHUB_TOKEN") or os.getenv("COPILOT_API_KEY")):
-            console.print(
+            ui.console.print(
                 "[bold yellow]Warning: GITHUB_TOKEN or COPILOT_API_KEY is not set in the environment.[/bold yellow]"
+            )
+    elif prov_clean == "openai":
+        if not os.getenv("OPENAI_API_KEY"):
+            ui.console.print(
+                "[bold yellow]Warning: OPENAI_API_KEY is not set in the environment.[/bold yellow]"
             )
     elif prov_clean == "gemini":
         if not os.getenv("GEMINI_API_KEY"):
-            console.print(
+            ui.console.print(
                 "[bold yellow]Warning: GEMINI_API_KEY is not set in the environment.[/bold yellow]"
             )
-            
+
     config = None
     if config_file:
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-                console.print(f"[dim]⚙️  Configuration loaded from: {config_file}[/dim]")
+                ui.console.print(f"[dim]⚙️  Configuration loaded from: {config_file}[/dim]")
         except Exception as e:
-            console.print(f"[bold red]Error loading configuration {config_file}: {e}[/bold red]")
+            ui.console.print(f"[bold red]Error loading configuration {config_file}: {e}[/bold red]")
             raise typer.Exit(code=1)
-            
+
     if rounds is not None and config:
         config.setdefault("orchestrator", {})["rounds"] = rounds
     elif rounds is not None:
@@ -200,14 +212,8 @@ def main(
 
     user_prompt = prompt or "Analysis and improvement of the provided project."
 
-    console.print("[bold cyan]====================================================[/bold cyan]")
-    console.print(f"[bold cyan]  TABLE-RONDE : MULTI-AGENT DEBATE ({provider.upper()}) [/bold cyan]")
-    console.print("[bold cyan]====================================================[/bold cyan]\n")
-
-    if path:
-        console.print(f"[dim]📁 Analyzing project at path: {path.resolve()}[/dim]\n")
-    if resume:
-        console.print(f"[dim]🔄 Resuming session from: {resume.resolve()}[/dim]\n")
+    # ── Display visual banner, participants, and configuration ──
+    ui.print_banner(provider)
 
     try:
         agents = TableRondeAgents(config=config, provider=provider, model_name=model)
@@ -215,41 +221,53 @@ def main(
             agents,
             on_message_callback=make_stream_callback(agents),
             human_input_callback=make_human_input_callback(interactive),
+            on_phase_callback=make_phase_callback(),
+        )
+
+        ui.print_agents_table(agents.personas, agents.architect_cfg)
+
+        active_rounds = 1
+        if isinstance(agents.config, dict):
+            active_rounds = agents.config.get("orchestrator", {}).get("rounds", 1)
+
+        ui.print_config_summary(
+            rounds=active_rounds,
+            interactive=interactive,
+            project_path=str(path.resolve()) if path else None,
+            output_path=str(output.resolve()),
         )
 
         if resume:
+            ui.console.print(f"[dim]🔄 Resuming session from: {resume.resolve()}[/dim]\n")
             orchestrator.load_session(str(resume))
 
+        start_time = time.monotonic()
+
         result = orchestrator.run_simulation(
-            user_prompt, 
+            user_prompt,
             project_path=str(path) if path else None,
             is_resume=bool(resume),
-            save_path=str(save_session) if save_session else None
+            save_path=str(save_session) if save_session else None,
         )
+
+        elapsed = time.monotonic() - start_time
 
         final_plan = result["final_plan"]
         output.write_text(final_plan, encoding="utf-8")
 
-        summary_msg = (
-            f"[bold green]✨ Implementation Plan successfully generated![/bold green]\n"
-            f"The file was saved to: [bold white]{output.resolve()}[/bold white]"
-        )
-
         if export_transcript:
             full_transcript = result.get("full_transcript", "")
             export_transcript.write_text(full_transcript, encoding="utf-8")
-            summary_msg += f"\n[dim]📝 Transcript exported to: {export_transcript.resolve()}[/dim]"
 
-        console.print(
-            Panel(
-                summary_msg,
-                title="🎉 Finished",
-                border_style="green",
-            )
+        ui.print_final_summary(
+            output_path=str(output.resolve()),
+            transcript_path=str(export_transcript.resolve()) if export_transcript else None,
+            session_path=str(save_session.resolve()) if save_session else None,
+            duration_secs=elapsed,
         )
 
     except Exception as e:
-        console.print(f"\n[bold red]An error occurred during the simulation: {e}[/bold red]")
+        ui.console.print(f"\n[bold red]An error occurred during the simulation: {e}[/bold red]")
         raise typer.Exit(code=1)
 
 

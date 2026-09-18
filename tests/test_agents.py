@@ -1,6 +1,8 @@
 import os
 from unittest.mock import patch
+
 from table_ronde.agents import TableRondeAgents
+
 
 @patch("table_ronde.agents.ChatGoogleGenerativeAI")
 @patch("table_ronde.agents.ChatOpenAI")

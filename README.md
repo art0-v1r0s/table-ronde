@@ -8,8 +8,10 @@ Since version 2.0, **Table-Ronde is completely dynamic**: you can configure your
 
 ---
 
-## ⚡ Features (v2.0)
+## ⚡ Features (v2.0 / v3.0)
 
+- **Interactive Setup Menu (NEW)**: Launching `table-ronde` with zero arguments triggers a guided terminal menu (`questionary`) to configure the topic, provider, rounds, and paths interactively.
+- **Immersive Visual Terminal UI (NEW)**: ASCII art banner (`pyfiglet`), colored streaming panels per agent role, round progress bars, tool call indicators, and execution duration summaries.
 - **Dynamic Configuration (`config.yml`)**: Define your own personas (e.g., Security Expert, Junior Developer), their emojis, their prompts, and individual temperatures.
 - **Hybrid Models**: Ability to assign a different LLM provider/model to each agent (e.g., `gpt-4o` for the Architect, `gemini-3.6-flash` for the Skeptic).
 - **Multiple Rounds**: Launch in-depth debates across multiple loops (`--rounds N`).
@@ -69,6 +71,14 @@ export OPENAI_API_KEY="your_openai_key"
 ---
 
 ## 🚀 Usage
+
+### 0. Guided Interactive Menu (Zero Arguments)
+
+Launch without any arguments to start the interactive wizard:
+```bash
+uv run table-ronde
+```
+*Guides you through choosing the topic, LLM provider (Gemini, OpenAI, Copilot), debate rounds, directory scanning, and custom configs with interactive terminal prompts.*
 
 ### 1. Simple Analysis (Default Prompts and Agents)
 

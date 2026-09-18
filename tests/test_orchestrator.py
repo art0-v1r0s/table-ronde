@@ -46,3 +46,27 @@ def test_human_input_injected_in_history():
         if hasattr(m, "content") and "Focus sur la sécurité" in m.content
     ]
     assert len(human_msgs) == 1
+
+
+def test_orchestrator_phase_callbacks():
+    mock_agents = MagicMock()
+    mock_agents.config = {"orchestrator": {"rounds": 2}}
+    mock_agents.architect_cfg = {"role": "architect", "title": "Architect", "emoji": "🏛️"}
+    mock_agents.personas = [{"role": "skeptic", "title": "Skeptic", "emoji": "🤔"}]
+    mock_agents.stream_agent.side_effect = lambda role, history, instr=None: iter(
+        [MagicMock(content="Mock answer", tool_call_chunks=[])]
+    )
+
+    phases_called = []
+
+    def phase_cb(phase, data):
+        phases_called.append((phase, data))
+
+    orchestrator = Orchestrator(mock_agents, on_phase_callback=phase_cb)
+    orchestrator.run_simulation("Test phases")
+
+    phase_names = [p[0] for p in phases_called]
+    assert "opening" in phase_names
+    assert phase_names.count("round") == 2
+    assert "resolution" in phase_names
+

@@ -15,7 +15,9 @@ dependencies = [
     "langchain-openai>=1.6.2",
     "pathspec>=1.1.1",
     "pydantic>=2.13.5",
+    "pyfiglet>=1.0.2",
     "pyyaml>=6.0.3",
+    "questionary>=2.1.0",
     "rich>=15.0.0",
     "typer>=0.27.2",
 ]
@@ -38,3 +40,7 @@ dev = [
 
 [tool.ruff.lint]
 ignore = ["B008", "BLE001", "S110", "SIM102"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

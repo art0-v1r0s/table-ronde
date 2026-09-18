@@ -3,6 +3,7 @@ from pathlib import Path
 
 from langchain_core.tools import tool
 
+
 @tool
 def search_codebase(query: str, path: str) -> str:
     """
@@ -120,7 +121,7 @@ def search_web(query: str) -> str:
             
         return "\n".join(formatted_results)
     except Exception as e:
-        return f"Error executing web search: {str(e)}"
+        return f"Error executing web search: {e!s}"
 
 # Export list of tools
 AVAILABLE_TOOLS = [search_codebase, read_file, search_web]
