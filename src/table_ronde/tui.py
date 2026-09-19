@@ -29,9 +29,13 @@ from textual.widgets import (
     Markdown,
     Select,
     Static,
+    TabbedContent,
+    TabPane,
     TextArea,
 )
 from textual.worker import Worker, WorkerState
+import yaml
+from table_ronde.agents import DEFAULT_CONFIG
 
 # ─── Custom Widgets ────────────────────────────────────────
 
@@ -141,48 +145,57 @@ class SetupScreen(Screen):
         with Container(id="setup-container"):
             yield Label("🛠️  Table-Ronde Setup", id="setup-title")
 
-            yield Label("📝 Topic or project description:")
-            yield TextArea(id="prompt", language=None)
+            with TabbedContent():
+                with TabPane("Debate Setup", id="tab-debate"):
+                    yield Label("📝 Topic or project description:")
+                    yield TextArea(id="prompt", language=None)
 
-            with Horizontal(classes="input-row"):
-                with Vertical(classes="input-col"):
-                    yield Label("🤖 LLM Provider:")
-                    yield Select(
-                        (
-                            ("Google Gemini (default)", "gemini"),
-                            ("OpenAI", "openai"),
-                            ("GitHub Copilot", "copilot"),
-                        ),
-                        value="gemini",
-                        id="provider",
-                    )
-                with Vertical(classes="input-col"):
-                    yield Label("🔗 Model (leave empty for default):")
-                    yield Input(placeholder="e.g. gemini-3.6-flash, gpt-4o", id="model")
+                    with Horizontal(classes="input-row"):
+                        with Vertical(classes="input-col"):
+                            yield Label("🤖 LLM Provider:")
+                            yield Select(
+                                (
+                                    ("Google Gemini (default)", "gemini"),
+                                    ("OpenAI", "openai"),
+                                    ("GitHub Copilot", "copilot"),
+                                ),
+                                value="gemini",
+                                id="provider",
+                            )
+                        with Vertical(classes="input-col"):
+                            yield Label("🔗 Model (leave empty for default):")
+                            yield Input(placeholder="e.g. gemini-3.6-flash, gpt-4o", id="model")
 
-            with Horizontal(classes="input-row"):
-                with Vertical(classes="input-col"):
-                    yield Label("🔄 Number of debate rounds:")
-                    yield Input(value="1", type="integer", id="rounds")
-                with Vertical(classes="input-col"):
-                    yield Label(" ")  # spacer for alignment
-                    yield Checkbox(
-                        "💬 Enable interactive mode (pause between rounds)",
-                        id="interactive",
-                    )
+                    with Horizontal(classes="input-row"):
+                        with Vertical(classes="input-col"):
+                            yield Label("🔄 Number of debate rounds:")
+                            yield Input(value="1", type="integer", id="rounds")
+                        with Vertical(classes="input-col"):
+                            yield Label(" ")  # spacer for alignment
+                            yield Checkbox(
+                                "💬 Enable interactive mode (pause between rounds)",
+                                id="interactive",
+                            )
 
-            with Horizontal(classes="input-row"):
-                with Vertical(classes="input-col"):
-                    yield Label("📁 Project path to scan (optional):")
-                    yield Input(placeholder="/path/to/project", id="path")
-                with Vertical(classes="input-col"):
-                    yield Label("⚙️  Custom Config YAML (optional):")
-                    yield Input(placeholder="/path/to/config.yml", id="config_file")
+                    with Horizontal(classes="input-row"):
+                        with Vertical(classes="input-col"):
+                            yield Label("📁 Project path to scan (optional):")
+                            yield Input(placeholder="/path/to/project", id="path")
+                        with Vertical(classes="input-col"):
+                            yield Label("⚙️  Custom Config YAML (optional):")
+                            yield Input(placeholder="/path/to/config.yml", id="config_file")
 
-            with Horizontal(classes="input-row"):  # noqa: SIM117
-                with Vertical(classes="input-col"):
-                    yield Label("📄 Output file path:")
-                    yield Input(value="plan_v2.md", id="output")
+                    with Horizontal(classes="input-row"):  # noqa: SIM117
+                        with Vertical(classes="input-col"):
+                            yield Label("📄 Output file path:")
+                            yield Input(value="plan_v2.md", id="output")
+                
+                with TabPane("Agent Config", id="tab-config"):
+                    yield Label("⚙️ Edit agent prompts and configuration:")
+                    default_yaml = yaml.dump(DEFAULT_CONFIG, sort_keys=False)
+                    yield TextArea(default_yaml, id="custom-yaml", language="yaml")
+                    with Horizontal(id="config-buttons"):
+                        yield Button("💾 Save Config to File", id="save_config")
 
             with Horizontal(id="setup-buttons"):
                 yield Button("🚀 Launch Debate", variant="success", id="launch")
@@ -192,14 +205,27 @@ class SetupScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel":
             self.app.exit()
+        elif event.button.id == "save_config":
+            custom_yaml = self.query_one("#custom-yaml", TextArea).text
+            try:
+                path = Path("custom_config.yml")
+                path.write_text(custom_yaml, encoding="utf-8")
+                self.notify(f"Config saved to {path.resolve()}", severity="information")
+                # Auto-fill the config_file input in the Debate Setup tab
+                self.query_one("#config_file", Input).value = str(path.resolve())
+            except Exception as e:
+                self.notify(f"Failed to save config: {e}", severity="error")
         elif event.button.id == "launch":
             prompt_area = self.query_one("#prompt", TextArea)
             prompt_text = prompt_area.text.strip()
             if not prompt_text:
+                # Switch to Debate Setup tab if not there
+                self.query_one(TabbedContent).active = "tab-debate"
                 prompt_area.focus()
                 self.notify("Please enter a topic", severity="error")
                 return
 
+            custom_yaml = self.query_one("#custom-yaml", TextArea).text
             config = {
                 "prompt": prompt_text,
                 "provider": self.query_one("#provider", Select).value,
@@ -209,6 +235,7 @@ class SetupScreen(Screen):
                 "path": self.query_one("#path", Input).value.strip() or None,
                 "config_file": self.query_one("#config_file", Input).value.strip()
                 or None,
+                "custom_yaml_text": custom_yaml,
                 "output": self.query_one("#output", Input).value.strip()
                 or "plan_v2.md",
             }
@@ -292,8 +319,18 @@ class DebateScreen(Screen):
         config_file = config.get("config_file")
 
         # Load YAML config if provided
+        custom_yaml_text = config.get("custom_yaml_text")
         yaml_config = None
-        if config_file:
+
+        if custom_yaml_text and custom_yaml_text.strip():
+            try:
+                yaml_config = yaml.safe_load(custom_yaml_text)
+            except Exception as e:
+                self.app.call_from_thread(
+                    self.notify, f"Error parsing YAML from tab: {e}", severity="error"
+                )
+                return
+        elif config_file:
             try:
                 with open(config_file, "r", encoding="utf-8") as f:
                     yaml_config = yaml.safe_load(f)

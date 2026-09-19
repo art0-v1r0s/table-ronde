@@ -52,6 +52,21 @@ SetupScreen {
     margin-right: 2;
 }
 
+TabbedContent {
+    height: 1fr;
+}
+
+#custom-yaml {
+    height: 1fr;
+    border: round $primary;
+}
+
+#config-buttons {
+    height: auto;
+    margin-top: 1;
+    align: right middle;
+}
+
 #setup-title {
     text-align: center;
     text-style: bold;
