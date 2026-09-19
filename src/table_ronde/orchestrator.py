@@ -64,11 +64,13 @@ class Orchestrator:
         while True:
             # We stream without passing new_instruction since it's already in history
             gen = self.agents.stream_agent(role, self.history)
-            
+
             tool_call_chunks: list[Any] = []
             final_content = ""
-            
-            def chunk_interceptor(generator, tc_chunks) -> Generator[BaseMessageChunk, None, None]:
+
+            def chunk_interceptor(
+                generator, tc_chunks
+            ) -> Generator[BaseMessageChunk, None, None]:
                 nonlocal final_content
                 for chunk in generator:
                     if chunk.tool_call_chunks:
@@ -85,33 +87,40 @@ class Orchestrator:
                     yield chunk
 
             intercepted_gen = chunk_interceptor(gen, tool_call_chunks)
-            
+
             if self.on_message_callback:
                 self.on_message_callback(role, intercepted_gen)
             else:
                 for _ in intercepted_gen:
                     pass
-                    
+
             if not tool_call_chunks:
-                self.transcript_entries.append({"role": role, "title": title, "content": final_content})
+                self.transcript_entries.append(
+                    {"role": role, "title": title, "content": final_content}
+                )
                 self.history.append(AIMessage(content=final_content))
                 return final_content
-                
+
             # If we get here, the model wanted to call tools
             import json as json_lib
+
             tool_calls = []
-            
+
             # Naive merging of tool call chunks
             calls_by_index = {}
             for chunk in tool_call_chunks:
                 idx = chunk.get("index")
                 if idx not in calls_by_index:
-                    calls_by_index[idx] = {"name": "", "args": "", "id": chunk.get("id")}
+                    calls_by_index[idx] = {
+                        "name": "",
+                        "args": "",
+                        "id": chunk.get("id"),
+                    }
                 if chunk.get("name"):
                     calls_by_index[idx]["name"] += chunk.get("name")
                 if chunk.get("args"):
                     calls_by_index[idx]["args"] += chunk.get("args")
-                    
+
             # Add AIMessage with tool calls to history
             ai_message = AIMessage(content="", tool_calls=[])
             for idx, call_data in calls_by_index.items():
@@ -122,20 +131,22 @@ class Orchestrator:
                 tool_call_dict = {
                     "name": call_data["name"],
                     "args": args_dict,
-                    "id": call_data["id"] or f"call_{idx}"
+                    "id": call_data["id"] or f"call_{idx}",
                 }
                 # Use ToolCall cast or just dict append. Actually `ToolCall` is a TypedDict.
-                ai_message.tool_calls.append(tool_call_dict) # type: ignore
+                ai_message.tool_calls.append(tool_call_dict)  # type: ignore
                 tool_calls.append(tool_call_dict)
-                
+
             self.history.append(ai_message)
-            
+
             # Execute tools
             for tc in tool_calls:
                 tool_name = tc["name"]
                 tool_args = tc["args"]
                 if self.on_phase_callback:
-                    self.on_phase_callback("tool_call", {"name": tool_name, "args": str(tool_args)[:80]})
+                    self.on_phase_callback(
+                        "tool_call", {"name": tool_name, "args": str(tool_args)[:80]}
+                    )
                 if tool_name in self.tools_by_name:
                     tool_instance = self.tools_by_name[tool_name]
                     try:
@@ -144,9 +155,11 @@ class Orchestrator:
                         result = f"Error executing tool: {e}"
                 else:
                     result = f"Tool {tool_name} not found."
-                    
-                self.history.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
-                
+
+                self.history.append(
+                    ToolMessage(content=str(result), tool_call_id=tc["id"])
+                )
+
             # The loop will continue and stream again using the new history with tool results
             if self.on_message_callback:
                 # Need a little separator if we re-stream in the same UI?
@@ -155,7 +168,11 @@ class Orchestrator:
                 pass
 
     def run_simulation(
-        self, prompt_user: str, project_path: str | None = None, is_resume: bool = False, save_path: str | None = None
+        self,
+        prompt_user: str,
+        project_path: str | None = None,
+        is_resume: bool = False,
+        save_path: str | None = None,
     ) -> dict[str, str]:
         if not is_resume:
             self.history.clear()
@@ -165,11 +182,13 @@ class Orchestrator:
             context = f"Topic / Initial user request:\n{prompt_user}\n"
             if project_path:
                 scanned_data = scan_project(project_path)
-                context += f"\n\nExisting project context ({project_path}):\n{scanned_data}"
+                context += (
+                    f"\n\nExisting project context ({project_path}):\n{scanned_data}"
+                )
 
             architect_role = self.agents.architect_cfg["role"]
             architect_title = self.agents.architect_cfg["title"]
-            
+
             # --- PHASE 1 : OPENING ---
             if self.on_phase_callback:
                 self.on_phase_callback("opening", {"architect": architect_title})
@@ -182,26 +201,32 @@ class Orchestrator:
             # We already have history, but we need variables
             architect_role = self.agents.architect_cfg["role"]
             architect_title = self.agents.architect_cfg["title"]
-            
+
         # --- PHASE 2 : DEBATE ROUNDS ---
-        orch_config = self.agents.config.get("orchestrator", {}) if isinstance(self.agents.config, dict) else {}
+        orch_config = (
+            self.agents.config.get("orchestrator", {})
+            if isinstance(self.agents.config, dict)
+            else {}
+        )
         num_rounds = orch_config.get("rounds", 1)
-        
+
         current_round = 1
         while current_round <= num_rounds:
             if self.on_phase_callback:
-                self.on_phase_callback("round", {"current": current_round, "total": num_rounds})
+                self.on_phase_callback(
+                    "round", {"current": current_round, "total": num_rounds}
+                )
             for p in self.agents.personas:
                 role = p["role"]
                 title = p["title"]
-                
+
                 # Generic instruction for dynamic debate
                 instruction = (
                     "It is your turn to speak in this debate. "
                     "Express your arguments based on your role and bounce back on what was just said by the others. "
                     "Use tools if you need to verify claims or search code/web."
                 )
-                
+
                 self._stream_and_record(
                     role,
                     instruction,
@@ -218,10 +243,10 @@ class Orchestrator:
                         self.history.append(
                             HumanMessage(content=f"[User Note] : {user_note}")
                         )
-            
+
             if save_path:
                 self.save_session(save_path)
-            
+
             current_round += 1
 
         # --- PHASE 3 : RESOLUTION ---
@@ -232,7 +257,7 @@ class Orchestrator:
             "Synthesize the debate by integrating any potential user notes and generate the complete 'Implementation Plan v2.0' in Markdown.",
             f"Final Implementation Plan ({architect_title})",
         )
-        
+
         if save_path:
             self.save_session(save_path)
 
@@ -248,11 +273,11 @@ class Orchestrator:
             "## 💬 Agent Debate",
             "",
         ]
-        
+
         # Find emojis
         role_emojis = {p["role"]: p.get("emoji", "🤖") for p in self.agents.personas}
         role_emojis[architect_role] = self.agents.architect_cfg.get("emoji", "🏛️")
-        
+
         for entry in self.transcript_entries:
             role_emoji = role_emojis.get(entry["role"], "🤖")
             transcript_lines.append(f"### {role_emoji} {entry['title']}")

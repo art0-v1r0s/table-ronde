@@ -43,7 +43,7 @@ def test_menu_custom_rounds():
 
     with patch("table_ronde.menu.SetupMenuApp.run", return_value=expected_result):
         result = run_interactive_menu()
-        
+
     assert result["rounds"] == 5
     assert result["provider"] == "openai"
     assert result["interactive"] is True

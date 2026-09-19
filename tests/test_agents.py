@@ -14,6 +14,7 @@ def test_default_config_loading(mock_openai, mock_gemini):
     llm = agents._get_llm_for_role("architect")
     assert llm is not None
 
+
 @patch("table_ronde.agents.ChatGoogleGenerativeAI")
 @patch("table_ronde.agents.ChatOpenAI")
 def test_custom_config_loading(mock_openai, mock_gemini):
@@ -24,9 +25,9 @@ def test_custom_config_loading(mock_openai, mock_gemini):
             "role": "arch",
             "title": "Arch",
             "provider": "openai",
-            "model": "gpt-4o"
+            "model": "gpt-4o",
         },
-        "personas": []
+        "personas": [],
     }
     agents = TableRondeAgents(config=config)
     assert len(agents.personas) == 0

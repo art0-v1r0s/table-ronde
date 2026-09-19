@@ -90,7 +90,9 @@ def get_gitignore_spec(root: Path) -> pathspec.PathSpec | None:
     gitignore_path = root / ".gitignore"
     if gitignore_path.is_file():
         try:
-            lines = gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            lines = gitignore_path.read_text(
+                encoding="utf-8", errors="ignore"
+            ).splitlines()
             return pathspec.PathSpec.from_lines("gitignore", lines)
         except Exception:
             return None
@@ -131,7 +133,9 @@ def scan_project(project_path: str | Path) -> str:
     spec = get_gitignore_spec(root)
 
     tree_lines = [f"Project structure: {root.name}/"]
-    scanned_files: list[tuple[int, Path, Path]] = []  # (priority, rel_file_path, abs_file_path)
+    scanned_files: list[
+        tuple[int, Path, Path]
+    ] = []  # (priority, rel_file_path, abs_file_path)
 
     for dirpath, dirnames, filenames in os.walk(root):
         rel_dir = Path(dirpath).relative_to(root)
@@ -142,11 +146,12 @@ def scan_project(project_path: str | Path) -> str:
             if d in EXCLUDE_DIRS or d.startswith("."):
                 continue
             rel_subdir = rel_dir / d if rel_dir != Path(".") else Path(d)
-            if spec and (spec.match_file(str(rel_subdir)) or spec.match_file(f"{rel_subdir}/")):
+            if spec and (
+                spec.match_file(str(rel_subdir)) or spec.match_file(f"{rel_subdir}/")
+            ):
                 continue
             filtered_dirs.append(d)
         dirnames[:] = filtered_dirs
-
 
         level = len(rel_dir.parts) if rel_dir != Path(".") else 0
         indent = "  " * level
@@ -185,12 +190,18 @@ def scan_project(project_path: str | Path) -> str:
             content = abs_file.read_text(encoding="utf-8", errors="ignore")
             if content.strip():
                 snippet = content[:MAX_FILE_CHARS]
-                file_contents.append(f"\n--- File ({prio} pts): {rel_file} ---\n{snippet}")
+                file_contents.append(
+                    f"\n--- File ({prio} pts): {rel_file} ---\n{snippet}"
+                )
                 total_chars += len(snippet)
         except Exception:
             pass
 
-    summary = "\n".join(tree_lines) + "\n\n=== MAIN FILE CONTENTS (RAG Priority) ===\n" + "\n".join(file_contents)
+    summary = (
+        "\n".join(tree_lines)
+        + "\n\n=== MAIN FILE CONTENTS (RAG Priority) ===\n"
+        + "\n".join(file_contents)
+    )
     if total_chars >= MAX_TOTAL_CHARS:
         summary += "\n\n[Warning: Content was intelligently selected and truncated to fit context limits]"
 

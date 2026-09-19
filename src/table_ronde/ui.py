@@ -60,7 +60,9 @@ def print_banner(provider: str) -> None:
 
 
 # ─── Agents Table ──────────────────────────────────────────
-def print_agents_table(personas: list[dict[str, Any]], architect_cfg: dict[str, Any]) -> None:
+def print_agents_table(
+    personas: list[dict[str, Any]], architect_cfg: dict[str, Any]
+) -> None:
     """Print a rich table showing all participating agents."""
     table = Table(
         title="🎭 Roundtable Participants",
@@ -120,7 +122,9 @@ def print_config_summary(
     """Print a compact config summary panel."""
     tree = Tree("⚙️  [bold]Session Configuration[/bold]")
     tree.add(f"🔄 Rounds: [cyan]{rounds}[/cyan]")
-    interactive_status = "[green]Enabled[/green]" if interactive else "[dim]Disabled[/dim]"
+    interactive_status = (
+        "[green]Enabled[/green]" if interactive else "[dim]Disabled[/dim]"
+    )
     tree.add(f"💬 Interactive: {interactive_status}")
     if project_path:
         tree.add(f"📁 Project: [yellow]{project_path}[/yellow]")

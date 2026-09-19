@@ -3,7 +3,9 @@ import warnings
 from collections.abc import Generator
 from typing import Any
 
-warnings.filterwarnings("ignore", category=UserWarning, module="langchain_google_genai.*")
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="langchain_google_genai.*"
+)
 
 from langchain_core.messages import (
     BaseMessage,
@@ -41,7 +43,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "   - The target architecture (ideally with a `mermaid` diagram if relevant).\n"
             "   - The phased implementation steps (Step-by-step action plan).\n"
             "   - Residual risks and mitigation strategies."
-        )
+        ),
     },
     "personas": [
         {
@@ -61,7 +63,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
                 "- If code or an architecture diagram is provided, point out exactly what will fail (e.g., 'This loop will OOM the server', 'This is an obvious SQL injection').\n"
                 "- Be sharp, cynical, highly technical, and uncompromising. Use heavy technical jargon (O(n), SPOF, race condition, etc.).\n"
                 "- Do not propose building a massive over-engineered system to fix a problem: always propose to simplify or remove what is unnecessary."
-            )
+            ),
         },
         {
             "role": "enthusiast",
@@ -80,9 +82,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
                 "- Counter-attack the Skeptic by proving your solutions are viable (e.g., 'No, we are not going to write an HTTP server in C, we will use FastAPI and save 3 months').\n"
                 "- Speak with passion, use an energetic tone, and highlight very specific libraries or tools (e.g., Docker, GitHub Actions, Redis, Tailwind, etc.).\n"
                 "- Your improvements must be ambitious but must lead to concrete code or a realistic architecture."
-            )
-        }
-    ]
+            ),
+        },
+    ],
 }
 
 
@@ -113,7 +115,9 @@ def get_llm(
                 "Please set GITHUB_TOKEN or COPILOT_API_KEY in your environment variables."
             )
         endpoint = base_url or (
-            "https://models.inference.ai.azure.com" if prov in ("copilot", "github") else None
+            "https://models.inference.ai.azure.com"
+            if prov in ("copilot", "github")
+            else None
         )
         kwargs: dict = {"model": model, "temperature": temperature, "api_key": key}
         if endpoint:
@@ -127,10 +131,14 @@ def get_llm(
             raise ValueError(
                 "Gemini API key not found. Please set the GEMINI_API_KEY environment variable."
             )
-        gemini_llm = ChatGoogleGenerativeAI(model=model, temperature=temperature, google_api_key=key)
+        gemini_llm = ChatGoogleGenerativeAI(
+            model=model, temperature=temperature, google_api_key=key
+        )
         return gemini_llm.bind_tools(AVAILABLE_TOOLS)
     else:
-        raise ValueError(f"Unsupported provider: '{provider}'. Choose 'gemini' or 'copilot'.")
+        raise ValueError(
+            f"Unsupported provider: '{provider}'. Choose 'gemini' or 'copilot'."
+        )
 
 
 class TableRondeAgents:
@@ -144,21 +152,27 @@ class TableRondeAgents:
     ):
         self.config: dict[str, Any] = config if config is not None else DEFAULT_CONFIG
         orch_config = self.config.get("orchestrator", {})
-        
-        self.default_provider = provider or orch_config.get("default_provider", "gemini")
-        self.default_model = model_name or orch_config.get("default_model", "gemini-3.6-flash")
+
+        self.default_provider = provider or orch_config.get(
+            "default_provider", "gemini"
+        )
+        self.default_model = model_name or orch_config.get(
+            "default_model", "gemini-3.6-flash"
+        )
         self.api_key = api_key
         self.base_url = base_url
-        
+
         self.llms: dict[str, Runnable] = {}
         self.prompts: dict[str, str] = {}
         self.personas: list[dict[str, Any]] = self.config.get("personas", [])
-        self.architect_cfg: dict[str, Any] = self.config.get("architect", DEFAULT_CONFIG["architect"])
-        
+        self.architect_cfg: dict[str, Any] = self.config.get(
+            "architect", DEFAULT_CONFIG["architect"]
+        )
+
         # Initialize LLMs and prompts for each persona
         for p in self.personas:
             self._init_agent(p)
-        
+
         # Initialize the Architect
         self._init_agent(self.architect_cfg)
 
@@ -173,7 +187,7 @@ class TableRondeAgents:
             model_name=model,
             temperature=temp,
             api_key=self.api_key,
-            base_url=self.base_url
+            base_url=self.base_url,
         )
 
     def _get_llm_for_role(self, role: str) -> Runnable:
@@ -186,14 +200,20 @@ class TableRondeAgents:
             raise ValueError(f"Unknown role: {role}")
         return self.prompts[role]
 
-    def _build_messages(self, role: str, history: list, new_instruction: str | None = None) -> list[BaseMessage]:
-        messages: list[BaseMessage] = [SystemMessage(content=self._get_system_prompt_for_role(role))]
+    def _build_messages(
+        self, role: str, history: list, new_instruction: str | None = None
+    ) -> list[BaseMessage]:
+        messages: list[BaseMessage] = [
+            SystemMessage(content=self._get_system_prompt_for_role(role))
+        ]
         messages.extend(history)
         if new_instruction:
             messages.append(HumanMessage(content=new_instruction))
         return messages
 
-    def invoke_agent(self, role: str, history: list, new_instruction: str | None = None) -> str:
+    def invoke_agent(
+        self, role: str, history: list, new_instruction: str | None = None
+    ) -> str:
         messages = self._build_messages(role, history, new_instruction)
         response = self._get_llm_for_role(role).invoke(messages)
         return str(response.content)

@@ -18,8 +18,20 @@ def test_print_banner():
 
 def test_print_agents_table():
     personas = [
-        {"role": "skeptic", "title": "The Skeptic", "emoji": "😈", "model": "gemini-3.6-flash", "temperature": 0.6},
-        {"role": "enthusiast", "title": "The Enthusiast", "emoji": "🚀", "model": "gpt-4o", "temperature": 0.8},
+        {
+            "role": "skeptic",
+            "title": "The Skeptic",
+            "emoji": "😈",
+            "model": "gemini-3.6-flash",
+            "temperature": 0.6,
+        },
+        {
+            "role": "enthusiast",
+            "title": "The Enthusiast",
+            "emoji": "🚀",
+            "model": "gpt-4o",
+            "temperature": 0.8,
+        },
     ]
     architect_cfg = {
         "role": "architect",
@@ -32,8 +44,12 @@ def test_print_agents_table():
 
 
 def test_print_config_summary():
-    ui.print_config_summary(rounds=2, interactive=True, project_path="/tmp", output_path="plan_v2.md")
-    ui.print_config_summary(rounds=1, interactive=False, project_path=None, output_path="plan_v2.md")
+    ui.print_config_summary(
+        rounds=2, interactive=True, project_path="/tmp", output_path="plan_v2.md"
+    )
+    ui.print_config_summary(
+        rounds=1, interactive=False, project_path=None, output_path="plan_v2.md"
+    )
 
 
 def test_print_phase_and_round_headers():

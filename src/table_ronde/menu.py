@@ -37,7 +37,10 @@ class SetupMenuApp(App[dict[str, Any] | None]):
         yield Header()
         with VerticalScroll(id="form-container"):
             yield Label("📝 Topic or project description:")
-            yield Input(placeholder="e.g. 'Design a high-performance caching layer'", id="prompt")
+            yield Input(
+                placeholder="e.g. 'Design a high-performance caching layer'",
+                id="prompt",
+            )
 
             yield Label("🤖 LLM Provider:")
             yield Select(
@@ -53,7 +56,9 @@ class SetupMenuApp(App[dict[str, Any] | None]):
             yield Label("🔄 Number of debate rounds:")
             yield Input(value="1", type="integer", id="rounds")
 
-            yield Checkbox("💬 Enable interactive mode (pause between rounds)", id="interactive")
+            yield Checkbox(
+                "💬 Enable interactive mode (pause between rounds)", id="interactive"
+            )
 
             yield Label("📁 Project path to scan (optional):")
             yield Input(placeholder="/path/to/project", id="path")
@@ -88,8 +93,10 @@ class SetupMenuApp(App[dict[str, Any] | None]):
                     "rounds": int(self.query_one("#rounds", Input).value or 1),
                     "interactive": self.query_one("#interactive", Checkbox).value,
                     "path": self.query_one("#path", Input).value.strip() or None,
-                    "config_file": self.query_one("#config_file", Input).value.strip() or None,
-                    "output": self.query_one("#output", Input).value.strip() or "plan_v2.md",
+                    "config_file": self.query_one("#config_file", Input).value.strip()
+                    or None,
+                    "output": self.query_one("#output", Input).value.strip()
+                    or "plan_v2.md",
                 }
             )
 
@@ -116,10 +123,16 @@ def run_interactive_menu() -> dict[str, Any]:
         f"  💬 [bold]Interactive:[/bold] [{'green' if result['interactive'] else 'dim'}]{result['interactive']}[/]",
     ]
     if result.get("path"):
-        summary_lines.append(f"  📁 [bold]Project:[/bold]     [yellow]{result['path']}[/yellow]")
+        summary_lines.append(
+            f"  📁 [bold]Project:[/bold]     [yellow]{result['path']}[/yellow]"
+        )
     if result.get("config_file"):
-        summary_lines.append(f"  ⚙️  [bold]Config:[/bold]      [dim]{result['config_file']}[/dim]")
-    summary_lines.append(f"  📄 [bold]Output:[/bold]      [white]{result['output']}[/white]")
+        summary_lines.append(
+            f"  ⚙️  [bold]Config:[/bold]      [dim]{result['config_file']}[/dim]"
+        )
+    summary_lines.append(
+        f"  📄 [bold]Output:[/bold]      [white]{result['output']}[/white]"
+    )
 
     from rich.panel import Panel
 
