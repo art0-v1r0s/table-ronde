@@ -10,7 +10,13 @@ runner = CliRunner()
 def _setup_mock_agents(mock_agents):
     instance = MagicMock()
     instance.personas = [
-        {"role": "skeptic", "title": "The Skeptic", "emoji": "😈", "model": "gemini-3.6-flash", "temperature": 0.6}
+        {
+            "role": "skeptic",
+            "title": "The Skeptic",
+            "emoji": "😈",
+            "model": "gemini-3.6-flash",
+            "temperature": 0.6,
+        }
     ]
     instance.architect_cfg = {
         "role": "architect",
@@ -36,7 +42,17 @@ def test_cli_direct_with_prompt(mock_orchestrator, mock_agents, tmp_path):
     mock_orchestrator.return_value = mock_orch_instance
 
     out_file = tmp_path / "plan.md"
-    result = runner.invoke(app, ["Architecture microservices", "--rounds", "1", "-o", str(out_file)])
+    result = runner.invoke(
+        app,
+        [
+            "Architecture microservices",
+            "--rounds",
+            "1",
+            "-o",
+            str(out_file),
+            "--no-tui",
+        ],
+    )
     assert result.exit_code == 0
     assert mock_orchestrator.called
     assert mock_orch_instance.run_simulation.called
@@ -46,7 +62,9 @@ def test_cli_direct_with_prompt(mock_orchestrator, mock_agents, tmp_path):
 @patch("table_ronde.cli.run_interactive_menu")
 @patch("table_ronde.cli.TableRondeAgents")
 @patch("table_ronde.cli.Orchestrator")
-def test_cli_zero_args_triggers_menu(mock_orchestrator, mock_agents, mock_menu, tmp_path):
+def test_cli_zero_args_triggers_menu(
+    mock_orchestrator, mock_agents, mock_menu, tmp_path
+):
     _setup_mock_agents(mock_agents)
     out_file = tmp_path / "plan_menu.md"
     mock_menu.return_value = {
@@ -65,7 +83,7 @@ def test_cli_zero_args_triggers_menu(mock_orchestrator, mock_agents, mock_menu, 
     }
     mock_orchestrator.return_value = mock_orch_instance
 
-    result = runner.invoke(app, [])
+    result = runner.invoke(app, ["--no-tui"])
     assert result.exit_code == 0
     assert mock_menu.called
     assert mock_orchestrator.called
@@ -75,5 +93,5 @@ def test_cli_zero_args_triggers_menu(mock_orchestrator, mock_agents, mock_menu, 
 @patch("table_ronde.cli.run_interactive_menu")
 def test_cli_menu_abort(mock_menu):
     mock_menu.side_effect = SystemExit(0)
-    result = runner.invoke(app, [])
+    result = runner.invoke(app, ["--no-tui"])
     assert result.exit_code == 0

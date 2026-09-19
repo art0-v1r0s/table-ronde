@@ -56,7 +56,9 @@ def make_stream_callback(agents: TableRondeAgents) -> Callable:
                     agent_index = idx
                     break
 
-        panel = ui.AgentStreamPanel(title=title, emoji=emoji, role=role, agent_index=agent_index)
+        panel = ui.AgentStreamPanel(
+            title=title, emoji=emoji, role=role, agent_index=agent_index
+        )
         full_text = ""
 
         try:
@@ -84,12 +86,17 @@ def make_phase_callback() -> Callable[[str, dict[str, Any]], None]:
     def callback(phase: str, data: dict[str, Any]) -> None:
         if phase == "opening":
             architect_name = data.get("architect", "Architect")
-            ui.print_phase_header("⚡ PHASE 1 — OPENING", f"{architect_name} sets the stage")
+            ui.print_phase_header(
+                "⚡ PHASE 1 — OPENING", f"{architect_name} sets the stage"
+            )
         elif phase == "round":
             ui.print_round_header(data["current"], data["total"])
         elif phase == "resolution":
             architect_name = data.get("architect", "Architect")
-            ui.print_phase_header("🏁 PHASE 3 — RESOLUTION", f"{architect_name} synthesizes the final plan")
+            ui.print_phase_header(
+                "🏁 PHASE 3 — RESOLUTION",
+                f"{architect_name} synthesizes the final plan",
+            )
         elif phase == "tool_call":
             ui.print_tool_call(data["name"], data.get("args", ""))
 
@@ -133,13 +140,22 @@ def main(
         None, "--rounds", "-r", help="Number of debate rounds (overrides config)"
     ),
     provider: str = typer.Option(
-        "gemini", "--provider", "-pr", help="LLM Provider ('gemini', 'openai', or 'copilot' / 'github')"
+        "gemini",
+        "--provider",
+        "-pr",
+        help="LLM Provider ('gemini', 'openai', or 'copilot' / 'github')",
     ),
     model: str | None = typer.Option(
-        None, "--model", "-m", help="Default model to use (e.g., 'gemini-3.6-flash' or 'gpt-4o')"
+        None,
+        "--model",
+        "-m",
+        help="Default model to use (e.g., 'gemini-3.6-flash' or 'gpt-4o')",
     ),
     export_transcript: Path | None = typer.Option(
-        None, "--export-transcript", "-t", help="File to export the full debate transcript"
+        None,
+        "--export-transcript",
+        "-t",
+        help="File to export the full debate transcript",
     ),
     interactive: bool = typer.Option(
         False,
@@ -153,8 +169,35 @@ def main(
     resume: Path | None = typer.Option(
         None, "--resume", help="Path to a saved session JSON to resume from"
     ),
+    no_tui: bool = typer.Option(
+        False,
+        "--no-tui",
+        help="Disable the full-screen Textual TUI and use legacy Rich CLI mode instead",
+    ),
 ):
-    # ── Interactive menu when launched with zero parameters ──
+    # ── TUI mode (default) ──
+    if not no_tui and not resume:
+        from table_ronde.tui import run_tui
+
+        if prompt or path:
+            # CLI args provided → skip setup screen, launch debate directly
+            tui_config = {
+                "prompt": prompt or "Analysis and improvement of the provided project.",
+                "provider": provider,
+                "model": model,
+                "rounds": rounds or 1,
+                "interactive": interactive,
+                "path": str(path) if path else None,
+                "config_file": str(config_file) if config_file else None,
+                "output": str(output),
+            }
+            run_tui(config=tui_config)
+        else:
+            # No args → show setup screen
+            run_tui()
+        return
+
+    # ── Legacy Rich CLI mode (--no-tui or --resume) ──
     if not prompt and not path and not resume and not config_file:
         try:
             menu_opts = run_interactive_menu()
@@ -200,9 +243,13 @@ def main(
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-                ui.console.print(f"[dim]⚙️  Configuration loaded from: {config_file}[/dim]")
+                ui.console.print(
+                    f"[dim]⚙️  Configuration loaded from: {config_file}[/dim]"
+                )
         except Exception as e:
-            ui.console.print(f"[bold red]Error loading configuration {config_file}: {e}[/bold red]")
+            ui.console.print(
+                f"[bold red]Error loading configuration {config_file}: {e}[/bold red]"
+            )
             raise typer.Exit(code=1)
 
     if rounds is not None and config:
@@ -238,7 +285,9 @@ def main(
         )
 
         if resume:
-            ui.console.print(f"[dim]🔄 Resuming session from: {resume.resolve()}[/dim]\n")
+            ui.console.print(
+                f"[dim]🔄 Resuming session from: {resume.resolve()}[/dim]\n"
+            )
             orchestrator.load_session(str(resume))
 
         start_time = time.monotonic()
@@ -261,13 +310,17 @@ def main(
 
         ui.print_final_summary(
             output_path=str(output.resolve()),
-            transcript_path=str(export_transcript.resolve()) if export_transcript else None,
+            transcript_path=str(export_transcript.resolve())
+            if export_transcript
+            else None,
             session_path=str(save_session.resolve()) if save_session else None,
             duration_secs=elapsed,
         )
 
     except Exception as e:
-        ui.console.print(f"\n[bold red]An error occurred during the simulation: {e}[/bold red]")
+        ui.console.print(
+            f"\n[bold red]An error occurred during the simulation: {e}[/bold red]"
+        )
         raise typer.Exit(code=1)
 
 
