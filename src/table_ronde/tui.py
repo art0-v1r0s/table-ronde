@@ -257,7 +257,7 @@ class DebateScreen(Screen):
         self._timer = self.set_interval(1.0, self._update_elapsed)
         # Start the debate in a background thread
         self._debate_worker = self.run_worker(
-            self._run_debate(),
+            self._run_debate,
             thread=True,
             name="debate",
             group="debate",
