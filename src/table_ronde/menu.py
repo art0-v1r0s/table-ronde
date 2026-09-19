@@ -1,152 +1,132 @@
-"""Interactive setup menu for table-ronde (zero-argument mode)."""
+"""Interactive setup menu for table-ronde using Textual."""
 
-from pathlib import Path
 from typing import Any
 
-import questionary
-from rich.panel import Panel
+from textual.app import App, ComposeResult
+from textual.containers import Horizontal, VerticalScroll
+from textual.widgets import Button, Checkbox, Footer, Header, Input, Label, Select
 
 from table_ronde import ui
 
 
+class SetupMenuApp(App[dict[str, Any] | None]):
+    """Textual App to configure the Table-Ronde launch parameters."""
+
+    CSS = """
+    Screen {
+        align: center middle;
+    }
+    #form-container {
+        width: 80%;
+        height: 80%;
+        border: solid cyan;
+        padding: 1 2;
+    }
+    Horizontal {
+        height: auto;
+        margin-top: 1;
+        align: center middle;
+    }
+    Button {
+        margin: 0 2;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        """Compose the UI layout."""
+        yield Header()
+        with VerticalScroll(id="form-container"):
+            yield Label("📝 Topic or project description:")
+            yield Input(placeholder="e.g. 'Design a high-performance caching layer'", id="prompt")
+
+            yield Label("🤖 LLM Provider:")
+            yield Select(
+                (
+                    ("Google Gemini (default)", "gemini"),
+                    ("OpenAI", "openai"),
+                    ("GitHub Copilot", "copilot"),
+                ),
+                value="gemini",
+                id="provider",
+            )
+
+            yield Label("🔄 Number of debate rounds:")
+            yield Input(value="1", type="integer", id="rounds")
+
+            yield Checkbox("💬 Enable interactive mode (pause between rounds)", id="interactive")
+
+            yield Label("📁 Project path to scan (optional):")
+            yield Input(placeholder="/path/to/project", id="path")
+
+            yield Label("⚙️  Custom Config YAML (optional):")
+            yield Input(placeholder="/path/to/config.yml", id="config_file")
+
+            yield Label("📄 Output file path:")
+            yield Input(value="plan_v2.md", id="output")
+
+            with Horizontal():
+                yield Button("🚀 Launch Debate", variant="success", id="launch")
+                yield Button("❌ Cancel", variant="error", id="cancel")
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "cancel":
+            self.exit(None)
+        elif event.button.id == "launch":
+            prompt = self.query_one("#prompt", Input).value.strip()
+            if not prompt:
+                self.query_one("#prompt", Input).focus()
+                # A quick textual 'toast' or simply focus is fine for validation
+                self.notify("Please enter a topic", severity="error")
+                return
+
+            self.exit(
+                {
+                    "prompt": prompt,
+                    "provider": self.query_one("#provider", Select).value,
+                    "rounds": int(self.query_one("#rounds", Input).value or 1),
+                    "interactive": self.query_one("#interactive", Checkbox).value,
+                    "path": self.query_one("#path", Input).value.strip() or None,
+                    "config_file": self.query_one("#config_file", Input).value.strip() or None,
+                    "output": self.query_one("#output", Input).value.strip() or "plan_v2.md",
+                }
+            )
+
+
 def run_interactive_menu() -> dict[str, Any]:
-    """Guide the user through an interactive setup when no CLI arguments are given.
+    """Launch the interactive Textual TUI.
 
     Returns a dict with resolved options matching CLI params.
     """
     ui.print_banner("")
 
-    ui.console.print(
-        "[bold cyan]🎯 Welcome! No arguments detected — launching interactive setup.[/bold cyan]\n"
-    )
+    app = SetupMenuApp()
+    result = app.run()
 
-    # 1. Topic / Prompt
-    prompt = questionary.text(
-        "📝 What topic or project should the agents debate?",
-        instruction="(e.g., 'Design a high-performance caching layer with Redis')",
-        validate=lambda t: len(t.strip()) > 0 or "Please enter a non-empty topic",
-    ).ask()
-
-    if prompt is None:
-        raise SystemExit(0)
-    prompt = prompt.strip()
-
-    # 2. Provider
-    provider = questionary.select(
-        "🤖 Which LLM provider would you like to use?",
-        choices=[
-            questionary.Choice("Google Gemini (default: gemini-3.6-flash)", value="gemini"),
-            questionary.Choice("OpenAI (default: gpt-4o)", value="openai"),
-            questionary.Choice("GitHub Copilot / Azure AI Models", value="copilot"),
-        ],
-        default="gemini",
-    ).ask()
-
-    if provider is None:
+    if not result:
+        ui.console.print("[dim]Aborted by user.[/dim]")
         raise SystemExit(0)
 
-    # 3. Rounds
-    rounds_choice = questionary.select(
-        "🔄 How many debate rounds?",
-        choices=[
-            questionary.Choice("1 round (quick audit & synthesis)", value="1"),
-            questionary.Choice("2 rounds (recommended: thesis, critique & counter-proposal)", value="2"),
-            questionary.Choice("3 rounds (in-depth deep dive)", value="3"),
-            questionary.Choice("Custom number of rounds...", value="custom"),
-        ],
-        default="1",
-    ).ask()
-
-    if rounds_choice is None:
-        raise SystemExit(0)
-
-    if rounds_choice == "custom":
-        custom_rounds = questionary.text(
-            "Enter number of rounds:",
-            validate=lambda t: (t.strip().isdigit() and int(t.strip()) > 0) or "Please enter a positive integer",
-        ).ask()
-        if custom_rounds is None:
-            raise SystemExit(0)
-        rounds = int(custom_rounds.strip())
-    else:
-        rounds = int(rounds_choice)
-
-    # 4. Interactive mode
-    interactive = questionary.confirm(
-        "💬 Enable interactive mode? (pause between rounds to inject notes or /round)",
-        default=False,
-    ).ask()
-
-    if interactive is None:
-        raise SystemExit(0)
-
-    # 5. Project path (optional)
-    scan_project = questionary.confirm(
-        "📁 Would you like to scan an existing project directory?",
-        default=False,
-    ).ask()
-
-    if scan_project is None:
-        raise SystemExit(0)
-
-    project_path: str | None = None
-    if scan_project:
-        project_path = questionary.path(
-            "Enter the directory path to scan:",
-            only_directories=True,
-            validate=lambda p: (Path(p).expanduser().is_dir() if p else False) or "Directory does not exist",
-        ).ask()
-        if project_path is None:
-            raise SystemExit(0)
-        project_path = str(Path(project_path).expanduser().resolve())
-
-    # 6. Config file (optional)
-    use_custom_config = questionary.confirm(
-        "⚙️  Use a custom YAML config file? (define custom personas or model overrides)",
-        default=False,
-    ).ask()
-
-    if use_custom_config is None:
-        raise SystemExit(0)
-
-    config_path: str | None = None
-    if use_custom_config:
-        config_path = questionary.path(
-            "Enter path to your config YAML:",
-            validate=lambda p: (Path(p).expanduser().is_file() if p else False) or "File does not exist",
-        ).ask()
-        if config_path is None:
-            raise SystemExit(0)
-        config_path = str(Path(config_path).expanduser().resolve())
-
-    # 7. Output file
-    output_file = questionary.text(
-        "📄 Output file path for the implementation plan:",
-        default="plan_v2.md",
-        validate=lambda t: len(t.strip()) > 0 or "Please enter a valid file path",
-    ).ask()
-
-    if output_file is None:
-        raise SystemExit(0)
-    output_file = output_file.strip()
-
-    # Summary confirmation
+    # Print summary of choices
     summary_lines = [
-        f"  📝 [bold]Topic:[/bold]       [cyan]{prompt}[/cyan]",
-        f"  🤖 [bold]Provider:[/bold]    [yellow]{provider.upper()}[/yellow]",
-        f"  🔄 [bold]Rounds:[/bold]      [cyan]{rounds}[/cyan]",
-        f"  💬 [bold]Interactive:[/bold] [{'green' if interactive else 'dim'}]{interactive}[/]",
+        f"  📝 [bold]Topic:[/bold]       [cyan]{result['prompt']}[/cyan]",
+        f"  🤖 [bold]Provider:[/bold]    [yellow]{result['provider'].upper()}[/yellow]",
+        f"  🔄 [bold]Rounds:[/bold]      [cyan]{result['rounds']}[/cyan]",
+        f"  💬 [bold]Interactive:[/bold] [{'green' if result['interactive'] else 'dim'}]{result['interactive']}[/]",
     ]
-    if project_path:
-        summary_lines.append(f"  📁 [bold]Project:[/bold]     [yellow]{project_path}[/yellow]")
-    if config_path:
-        summary_lines.append(f"  ⚙️  [bold]Config:[/bold]      [dim]{config_path}[/dim]")
-    summary_lines.append(f"  📄 [bold]Output:[/bold]      [white]{output_file}[/white]")
+    if result.get("path"):
+        summary_lines.append(f"  📁 [bold]Project:[/bold]     [yellow]{result['path']}[/yellow]")
+    if result.get("config_file"):
+        summary_lines.append(f"  ⚙️  [bold]Config:[/bold]      [dim]{result['config_file']}[/dim]")
+    summary_lines.append(f"  📄 [bold]Output:[/bold]      [white]{result['output']}[/white]")
+
+    from rich.panel import Panel
 
     ui.console.print()
     ui.console.print(
         Panel(
-            "\n".join(summary_lines),
+            "\\n".join(summary_lines),
             title="📋 [bold]Session Launch Summary[/bold]",
             border_style="cyan",
             padding=(0, 1),
@@ -154,18 +134,4 @@ def run_interactive_menu() -> dict[str, Any]:
     )
     ui.console.print()
 
-    confirmed = questionary.confirm("🚀 Launch the debate now?", default=True).ask()
-
-    if not confirmed:
-        ui.console.print("[dim]Aborted by user.[/dim]")
-        raise SystemExit(0)
-
-    return {
-        "prompt": prompt,
-        "provider": provider,
-        "rounds": rounds,
-        "interactive": interactive,
-        "path": project_path,
-        "config_file": config_path,
-        "output": output_file,
-    }
+    return result

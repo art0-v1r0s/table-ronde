@@ -17,8 +17,8 @@ dependencies = [
     "pydantic>=2.13.5",
     "pyfiglet>=1.0.2",
     "pyyaml>=6.0.3",
-    "questionary>=2.1.0",
     "rich>=15.0.0",
+    "textual>=8.2.8",
     "typer>=0.27.2",
 ]
 
