@@ -14,6 +14,8 @@ from langchain_core.messages import (
 from table_ronde.agents import TableRondeAgents
 from table_ronde.scanner import scan_project
 from table_ronde.tools import AVAILABLE_TOOLS
+from table_ronde.jev_client import JevEngine
+from table_ronde import ui
 
 StreamCallback = Callable[[str, Generator[BaseMessageChunk, None, None]], str]
 
@@ -39,6 +41,8 @@ class Orchestrator:
         self.history: list[Any] = []
         self.transcript_entries: list[dict[str, str]] = []
         self.tools_by_name = {t.name: t for t in AVAILABLE_TOOLS}
+        config = self.agents.config if isinstance(self.agents.config, dict) else {}
+        self.jev = JevEngine(config.get("orchestrator", {}))
 
     def save_session(self, filepath: str) -> None:
         """Serializes the history to a JSON file."""
@@ -233,6 +237,11 @@ class Orchestrator:
                     f"Intervention by {title} (Round {current_round})",
                 )
 
+            if self.jev.enabled:
+                if self.jev.evaluate_consensus(self.history):
+                    ui.console.print("[bold yellow]⚡ Jev Decision: Consensus reached. Ending debate early.[/]")
+                    break
+
             # --- USER INTERVENTION (INTERACTIVE MODE) ---
             if self.human_input_callback:
                 user_note = self.human_input_callback()
@@ -243,6 +252,12 @@ class Orchestrator:
                         self.history.append(
                             HumanMessage(content=f"[User Note] : {user_note}")
                         )
+                        if self.jev.enabled:
+                            decision = self.jev.evaluate_user_note(user_note)
+                            if decision == "NEW_ROUND":
+                                num_rounds += 1
+                            elif decision == "SYNTHESIS":
+                                ui.console.print("[bold yellow]⚡ Jev Decision: Proceeding to synthesis.[/]")
 
             if save_path:
                 self.save_session(save_path)

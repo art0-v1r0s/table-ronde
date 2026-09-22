@@ -174,6 +174,11 @@ def main(
         "--no-tui",
         help="Disable the full-screen Textual TUI and use legacy Rich CLI mode instead",
     ),
+    jev: bool = typer.Option(
+        False,
+        "--jev/--no-jev",
+        help="Enable JevEngine consensus and note routing",
+    ),
 ):
     # ── TUI mode (default) ──
     if not no_tui and not resume:
@@ -259,10 +264,16 @@ def main(
             )
             raise typer.Exit(code=1)
 
-    if rounds is not None and config:
-        config.setdefault("orchestrator", {})["rounds"] = rounds
-    elif rounds is not None:
-        config = {"orchestrator": {"rounds": rounds}}
+    if config is None:
+        config = {}
+    
+    if "orchestrator" not in config:
+        config["orchestrator"] = {}
+
+    if rounds is not None:
+        config["orchestrator"]["rounds"] = rounds
+
+    config["orchestrator"]["jev_enabled"] = jev
 
     user_prompt = prompt or "Analysis and improvement of the provided project."
 
