@@ -2,11 +2,7 @@ import logging
 from typing import Any
 from pydantic import BaseModel, Field
 
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    ChatOllama = None
-
+from table_ronde.agents import get_llm
 
 class ConsensusDecision(BaseModel):
     consensus_reached: bool = Field(
@@ -21,29 +17,30 @@ class RoutingDecision(BaseModel):
     )
 
 
-class LocalDecisionEngine:
+class SmartRouterEngine:
     def __init__(self, config: dict[str, Any]):
         self.config = config
         self.enabled = config.get("smart_routing_enabled", False)
-        self.model_name = config.get("router_model", "qwen2.5:0.5b")
+        self.provider = config.get("router_provider", "openai")
+        self.model_name = config.get("router_model", "gpt-4o-mini")
         self.consensus_threshold = config.get("consensus_threshold", 0.85)
 
         self.consensus_evaluator = None
         self.routing_evaluator = None
 
         if self.enabled:
-            if ChatOllama is None:
-                logging.warning("langchain-ollama is not installed. Smart routing disabled.")
+            try:
+                # Use the project's get_llm factory to support any provider
+                llm = get_llm(
+                    provider=self.provider,
+                    model_name=self.model_name,
+                    temperature=0.0
+                )
+                self.consensus_evaluator = llm.with_structured_output(ConsensusDecision)
+                self.routing_evaluator = llm.with_structured_output(RoutingDecision)
+            except Exception as e:
+                logging.error(f"Failed to initialize SmartRouterEngine with provider {self.provider} and model {self.model_name}: {e}")
                 self.enabled = False
-            else:
-                try:
-                    # Initialize with 0 temperature for fast, deterministic choices
-                    llm = ChatOllama(model=self.model_name, temperature=0.0)
-                    self.consensus_evaluator = llm.with_structured_output(ConsensusDecision)
-                    self.routing_evaluator = llm.with_structured_output(RoutingDecision)
-                except Exception as e:
-                    logging.error(f"Failed to initialize LocalDecisionEngine with model {self.model_name}: {e}")
-                    self.enabled = False
 
     def evaluate_consensus(self, history: list[Any]) -> bool:
         if not self.enabled or not self.consensus_evaluator:
@@ -76,7 +73,7 @@ class LocalDecisionEngine:
                 return result.consensus_reached and result.confidence >= self.consensus_threshold
             return False
         except Exception as e:
-            logging.error(f"LocalDecisionEngine consensus evaluation failed: {e}")
+            logging.error(f"SmartRouterEngine consensus evaluation failed: {e}")
             return False
 
     def evaluate_user_note(self, note: str) -> str:
@@ -90,5 +87,5 @@ class LocalDecisionEngine:
                 return result.action
             return "NEW_ROUND"
         except Exception as e:
-            logging.error(f"LocalDecisionEngine user note evaluation failed: {e}")
+            logging.error(f"SmartRouterEngine user note evaluation failed: {e}")
             return "NEW_ROUND"

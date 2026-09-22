@@ -14,7 +14,7 @@ from langchain_core.messages import (
 from table_ronde.agents import TableRondeAgents
 from table_ronde.scanner import scan_project
 from table_ronde.tools import AVAILABLE_TOOLS
-from table_ronde.local_router import LocalDecisionEngine
+from table_ronde.smart_router import SmartRouterEngine
 from table_ronde import ui
 
 StreamCallback = Callable[[str, Generator[BaseMessageChunk, None, None]], str]
@@ -42,7 +42,7 @@ class Orchestrator:
         self.transcript_entries: list[dict[str, str]] = []
         self.tools_by_name = {t.name: t for t in AVAILABLE_TOOLS}
         config = self.agents.config if isinstance(self.agents.config, dict) else {}
-        self.router = LocalDecisionEngine(config.get("orchestrator", {}))
+        self.router = SmartRouterEngine(config.get("orchestrator", {}))
 
     def save_session(self, filepath: str) -> None:
         """Serializes the history to a JSON file."""

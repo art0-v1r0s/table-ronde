@@ -177,12 +177,17 @@ def main(
     smart_routing: bool = typer.Option(
         False,
         "--smart-routing/--no-smart-routing",
-        help="Enable local System One routing (consensus & note routing) using a fast Ollama SLM",
+        help="Enable System One routing (consensus & note routing) using a fast LLM",
+    ),
+    router_provider: str = typer.Option(
+        "gemini",
+        "--router-provider",
+        help="Provider for the smart router (gemini, openai, claude, ollama)",
     ),
     router_model: str = typer.Option(
-        "qwen2.5:0.5b",
+        "gemini-1.5-flash",
         "--router-model",
-        help="Ollama model to use for smart routing (must support structured outputs)",
+        help="Model to use for smart routing (must support structured outputs)",
     ),
 ):
     # ── TUI mode (default) ──
@@ -279,6 +284,7 @@ def main(
         config["orchestrator"]["rounds"] = rounds
 
     config["orchestrator"]["smart_routing_enabled"] = smart_routing
+    config["orchestrator"]["router_provider"] = router_provider
     config["orchestrator"]["router_model"] = router_model
 
     user_prompt = prompt or "Analysis and improvement of the provided project."
