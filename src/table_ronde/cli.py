@@ -174,10 +174,15 @@ def main(
         "--no-tui",
         help="Disable the full-screen Textual TUI and use legacy Rich CLI mode instead",
     ),
-    jev: bool = typer.Option(
+    smart_routing: bool = typer.Option(
         False,
-        "--jev/--no-jev",
-        help="Enable JevEngine consensus and note routing",
+        "--smart-routing/--no-smart-routing",
+        help="Enable local System One routing (consensus & note routing) using a fast Ollama SLM",
+    ),
+    router_model: str = typer.Option(
+        "qwen2.5:0.5b",
+        "--router-model",
+        help="Ollama model to use for smart routing (must support structured outputs)",
     ),
 ):
     # ── TUI mode (default) ──
@@ -273,7 +278,8 @@ def main(
     if rounds is not None:
         config["orchestrator"]["rounds"] = rounds
 
-    config["orchestrator"]["jev_enabled"] = jev
+    config["orchestrator"]["smart_routing_enabled"] = smart_routing
+    config["orchestrator"]["router_model"] = router_model
 
     user_prompt = prompt or "Analysis and improvement of the provided project."
 
