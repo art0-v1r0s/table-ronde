@@ -143,7 +143,7 @@ def main(
         "gemini",
         "--provider",
         "-pr",
-        help="LLM Provider ('gemini', 'openai', or 'copilot' / 'github')",
+        help="LLM Provider ('gemini', 'openai', 'copilot' / 'github', 'claude', or 'ollama')",
     ),
     model: str | None = typer.Option(
         None,
@@ -237,6 +237,13 @@ def main(
             ui.console.print(
                 "[bold yellow]Warning: GEMINI_API_KEY is not set in the environment.[/bold yellow]"
             )
+    elif prov_clean == "claude":
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            ui.console.print(
+                "[bold yellow]Warning: ANTHROPIC_API_KEY is not set in the environment.[/bold yellow]"
+            )
+    elif prov_clean == "ollama":
+        pass  # No API key needed for local Ollama
 
     config = None
     if config_file:

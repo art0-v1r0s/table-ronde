@@ -48,6 +48,8 @@ class SetupMenuApp(App[dict[str, Any] | None]):
                     ("Google Gemini (default)", "gemini"),
                     ("OpenAI", "openai"),
                     ("GitHub Copilot", "copilot"),
+                    ("Anthropic Claude", "claude"),
+                    ("Ollama (local)", "ollama"),
                 ),
                 value="gemini",
                 id="provider",

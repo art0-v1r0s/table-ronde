@@ -158,6 +158,8 @@ class SetupScreen(Screen):
                                     ("Google Gemini (default)", "gemini"),
                                     ("OpenAI", "openai"),
                                     ("GitHub Copilot", "copilot"),
+                                    ("Anthropic Claude", "claude"),
+                                    ("Ollama (local)", "ollama"),
                                 ),
                                 value="gemini",
                                 id="provider",
@@ -365,6 +367,13 @@ class DebateScreen(Screen):
                 self.app.call_from_thread(
                     self.notify, "GEMINI_API_KEY not set", severity="warning"
                 )
+        elif prov_clean == "claude":
+            if not os.getenv("ANTHROPIC_API_KEY"):
+                self.app.call_from_thread(
+                    self.notify, "ANTHROPIC_API_KEY not set", severity="warning"
+                )
+        elif prov_clean == "ollama":
+            pass  # Local, no key needed
 
         # Create agents
         try:

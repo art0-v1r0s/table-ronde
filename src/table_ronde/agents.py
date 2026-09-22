@@ -135,9 +135,36 @@ def get_llm(
             model=model, temperature=temperature, google_api_key=key
         )
         return gemini_llm.bind_tools(AVAILABLE_TOOLS)
+    elif prov == "ollama":
+        from langchain_ollama import ChatOllama
+
+        model = model_name or "llama3.1"
+        llm = ChatOllama(
+            model=model,
+            temperature=temperature,
+            base_url=base_url or "http://localhost:11434",
+        )
+        return llm.bind_tools(AVAILABLE_TOOLS)
+    elif prov == "claude":
+        from langchain_anthropic import ChatAnthropic
+
+        model = model_name or "claude-sonnet-4-20250514"
+        key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        if not key:
+            raise ValueError(
+                "Anthropic API key not found. "
+                "Please set the ANTHROPIC_API_KEY environment variable."
+            )
+        llm = ChatAnthropic(
+            model=model,
+            temperature=temperature,
+            api_key=key,
+        )
+        return llm.bind_tools(AVAILABLE_TOOLS)
     else:
         raise ValueError(
-            f"Unsupported provider: '{provider}'. Choose 'gemini' or 'copilot'."
+            f"Unsupported provider: '{provider}'. "
+            "Choose 'gemini', 'openai', 'copilot', 'ollama', or 'claude'."
         )
 
 

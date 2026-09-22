@@ -68,6 +68,20 @@ export COPILOT_API_KEY="your_copilot_key"
 export OPENAI_API_KEY="your_openai_key"
 ```
 
+### For Anthropic Claude
+```bash
+export ANTHROPIC_API_KEY="your_anthropic_api_key"
+```
+
+### For Ollama (local — no API key needed)
+```bash
+# Install Ollama: https://ollama.com
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a model (e.g., llama3.1, mistral, qwen2.5, gemma2)
+ollama pull llama3.1
+```
+
 ---
 
 ## 🚀 Usage
@@ -148,7 +162,7 @@ uv run table-ronde [OPTIONS] [PROMPT]
 | `--interactive` | `-i` | Pause before resolution to inject your note or `/round` | `False` |
 | `--path` | `-p` | Path to an existing project directory to scan | `None` |
 | `--output` | `-o` | Output file for the final implementation plan | `plan_v2.md` |
-| `--provider` | `-pr` | LLM Provider (`gemini`, `copilot`, `github`, `openai`) | `gemini` |
+| `--provider` | `-pr` | LLM Provider (`gemini`, `copilot`, `github`, `openai`, `claude`, `ollama`) | `gemini` |
 | `--model` | `-m` | Specific model to use (e.g., `gemini-3.6-flash`, `gpt-4o`) | Auto based on provider |
 | `--export-transcript` | `-t` | File path to export the entire debate transcript | `None` |
 
