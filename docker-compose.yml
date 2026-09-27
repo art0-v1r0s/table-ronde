@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: table_ronde_redis
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_ARGS=--save 60 1 --loglevel notice
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: table_ronde_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=table_ronde_memory
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d table_ronde_memory"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:
+  postgres_data:
