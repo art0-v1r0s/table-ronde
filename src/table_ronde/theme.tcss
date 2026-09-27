@@ -79,17 +79,28 @@ TabbedContent {
     color: $text-muted;
 }
 
-#setup-container Input, #setup-container Select, #setup-container TextArea {
+#tab-debate {
+    overflow-y: auto;
+}
+
+#prompt {
+    height: 6;
+    min-height: 4;
+    border: tall $primary-muted;
     margin-bottom: 1;
 }
 
-Input, Select, TextArea {
+#prompt:focus {
+    border: tall $accent;
+}
+
+Input, Select {
     border: tall $primary-muted;
     background: $panel;
     color: $text;
 }
 
-Input:focus, Select:focus, TextArea:focus {
+Input:focus, Select:focus {
     border: tall $accent;
     background: $panel-lighten-1;
 }
