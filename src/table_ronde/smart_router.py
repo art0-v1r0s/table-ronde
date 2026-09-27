@@ -1,8 +1,11 @@
 import logging
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 from table_ronde.agents import get_llm
+
+logger = logging.getLogger(__name__)
 
 class ConsensusDecision(BaseModel):
     consensus_reached: bool = Field(
@@ -17,12 +20,26 @@ class RoutingDecision(BaseModel):
     )
 
 
+FAST_MODELS: dict[str, str] = {
+    "gemini": "gemini-2.0-flash",
+    "openai": "gpt-4o-mini",
+    "copilot": "gpt-4o-mini",
+    "github": "gpt-4o-mini",
+    "claude": "claude-haiku-4-20250414",
+    "ollama": "llama3.1",
+}
+
+
 class SmartRouterEngine:
     def __init__(self, config: dict[str, Any]):
         self.config = config
         self.enabled = config.get("smart_routing_enabled", False)
-        self.provider = config.get("router_provider", "openai")
-        self.model_name = config.get("router_model", "gpt-4o-mini")
+        self.provider = config.get(
+            "router_provider", config.get("default_provider", "gemini")
+        )
+        self.model_name = config.get(
+            "router_model", FAST_MODELS.get(self.provider, "gemini-2.0-flash")
+        )
         self.consensus_threshold = config.get("consensus_threshold", 0.85)
 
         self.consensus_evaluator = None
@@ -39,7 +56,12 @@ class SmartRouterEngine:
                 self.consensus_evaluator = llm.with_structured_output(ConsensusDecision)
                 self.routing_evaluator = llm.with_structured_output(RoutingDecision)
             except Exception as e:
-                logging.error(f"Failed to initialize SmartRouterEngine with provider {self.provider} and model {self.model_name}: {e}")
+                logger.error(
+                    "Failed to initialize SmartRouterEngine with provider %s and model %s: %s",
+                    self.provider,
+                    self.model_name,
+                    e,
+                )
                 self.enabled = False
 
     def evaluate_consensus(self, history: list[Any]) -> bool:
@@ -73,7 +95,7 @@ class SmartRouterEngine:
                 return result.consensus_reached and result.confidence >= self.consensus_threshold
             return False
         except Exception as e:
-            logging.error(f"SmartRouterEngine consensus evaluation failed: {e}")
+            logger.error("SmartRouterEngine consensus evaluation failed: %s", e)
             return False
 
     def evaluate_user_note(self, note: str) -> str:
@@ -87,5 +109,5 @@ class SmartRouterEngine:
                 return result.action
             return "NEW_ROUND"
         except Exception as e:
-            logging.error(f"SmartRouterEngine user note evaluation failed: {e}")
+            logger.error("SmartRouterEngine user note evaluation failed: %s", e)
             return "NEW_ROUND"

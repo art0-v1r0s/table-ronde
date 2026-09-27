@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Callable, Generator
 from typing import Any
 
@@ -11,11 +12,14 @@ from langchain_core.messages import (
     messages_to_dict,
 )
 
-from table_ronde.agents import TableRondeAgents
-from table_ronde.scanner import scan_project
-from table_ronde.tools import AVAILABLE_TOOLS
-from table_ronde.smart_router import SmartRouterEngine
 from table_ronde import ui
+from table_ronde.agents import TableRondeAgents
+from table_ronde.context_pruner import prune_history
+from table_ronde.scanner import scan_project
+from table_ronde.smart_router import SmartRouterEngine
+from table_ronde.tools import AVAILABLE_TOOLS
+
+logger = logging.getLogger(__name__)
 
 StreamCallback = Callable[[str, Generator[BaseMessageChunk, None, None]], str]
 
@@ -130,8 +134,26 @@ class Orchestrator:
             for idx, call_data in calls_by_index.items():
                 try:
                     args_dict = json_lib.loads(call_data["args"])
-                except Exception:
-                    args_dict = {}
+                except json_lib.JSONDecodeError as e:
+                    logger.warning(
+                        "Failed to parse tool call args for '%s' (index %s): %s — raw: %s",
+                        call_data["name"],
+                        idx,
+                        e,
+                        call_data["args"][:200],
+                    )
+                    # Attempt basic repair for common truncation patterns
+                    repaired = False
+                    for suffix in ['"}', '"}}', '"}]']:
+                        try:
+                            args_dict = json_lib.loads(call_data["args"] + suffix)
+                            logger.info("Repaired tool call args with suffix: %s", suffix)
+                            repaired = True
+                            break
+                        except json_lib.JSONDecodeError:
+                            continue
+                    if not repaired:
+                        args_dict = {}
                 tool_call_dict = {
                     "name": call_data["name"],
                     "args": args_dict,
@@ -262,6 +284,18 @@ class Orchestrator:
 
             if save_path:
                 self.save_session(save_path)
+
+            # Prune history if it exceeds threshold
+            if hasattr(self.agents, "_get_llm_for_role"):
+                try:
+                    pruner_llm = self.agents._get_llm_for_role(
+                        self.agents.architect_cfg["role"]
+                    )
+                    self.history = prune_history(
+                        pruner_llm, self.history, current_round
+                    )
+                except Exception as e:
+                    logger.warning("History pruning failed: %s", e)
 
             current_round += 1
 

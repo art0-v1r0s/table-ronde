@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 from uuid import uuid4
 
+import yaml
 from rich.markdown import Markdown as RichMarkdown
 from rich.text import Text
 from textual.app import App, ComposeResult
@@ -34,7 +35,7 @@ from textual.widgets import (
     TextArea,
 )
 from textual.worker import Worker, WorkerState
-import yaml
+
 from table_ronde.agents import DEFAULT_CONFIG
 
 # ─── Custom Widgets ────────────────────────────────────────
@@ -166,7 +167,7 @@ class SetupScreen(Screen):
                             )
                         with Vertical(classes="input-col"):
                             yield Label("🔗 Model (leave empty for default):")
-                            yield Input(placeholder="e.g. gemini-3.6-flash, gpt-4o", id="model")
+                            yield Input(placeholder="e.g. gemini-3.8-flash, gpt-4o", id="model")
 
                     with Horizontal(classes="input-row"):
                         with Vertical(classes="input-col"):

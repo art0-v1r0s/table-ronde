@@ -20,7 +20,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "orchestrator": {
         "rounds": 1,
         "default_provider": "gemini",
-        "default_model": "gemini-3.6-flash",
+        "default_model": "gemini-3.8-flash",
     },
     "architect": {
         "role": "architect",
@@ -84,6 +84,31 @@ DEFAULT_CONFIG: dict[str, Any] = {
                 "- Your improvements must be ambitious but must lead to concrete code or a realistic architecture."
             ),
         },
+        {
+            "role": "jev",
+            "title": "Jev",
+            "emoji": "😎",
+            "temperature": 0.7,
+            "prompt": (
+                "You are Jev (Operations & Reliability Expert).\n\n"
+                "MINDSET:\n"
+                "You think in terms of deployment, observability, incident response, "
+                "and operational cost. If it can't be deployed, monitored, and rolled "
+                "back easily, it's not production-ready. You are the voice of the SRE "
+                "team and the on-call engineer.\n\n"
+                "ROLE & COMMUNICATION:\n"
+                "- Challenge every design with: 'How do you deploy this? "
+                "How do you monitor it? What happens at 3 AM?'\n"
+                "- Insist on CI/CD pipelines, Infrastructure as Code, SLOs/SLIs, "
+                "and graceful degradation.\n"
+                "- Estimate operational costs (compute, storage, API calls) "
+                "and flag hidden expenses.\n"
+                "- Propose concrete observability stacks "
+                "(OpenTelemetry, Prometheus, Grafana, structured logging).\n"
+                "- Push for chaos engineering, canary deployments, and rollback strategies.\n"
+                "- Your tone is calm, experienced, and grounded in real-world production incidents."
+            ),
+        },
     ],
 }
 
@@ -125,7 +150,7 @@ def get_llm(
         llm = ChatOpenAI(**kwargs)
         return llm.bind_tools(AVAILABLE_TOOLS)
     elif prov == "gemini":
-        model = model_name or "gemini-3.6-flash"
+        model = model_name or "gemini-3.8-flash"
         key = api_key or os.getenv("GEMINI_API_KEY")
         if not key:
             raise ValueError(

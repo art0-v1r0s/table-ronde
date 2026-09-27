@@ -11,7 +11,7 @@ from table_ronde.agents import TableRondeAgents, get_llm
 def test_default_config_loading(mock_openai, mock_gemini):
     os.environ["GEMINI_API_KEY"] = "fake-key"
     agents = TableRondeAgents()
-    assert len(agents.personas) == 2
+    assert len(agents.personas) == 3
     assert agents.architect_cfg["role"] == "architect"
     llm = agents._get_llm_for_role("architect")
     assert llm is not None

@@ -149,7 +149,7 @@ def main(
         None,
         "--model",
         "-m",
-        help="Default model to use (e.g., 'gemini-3.6-flash' or 'gpt-4o')",
+        help="Default model to use (e.g., 'gemini-3.8-flash' or 'gpt-4o')",
     ),
     export_transcript: Path | None = typer.Option(
         None,
