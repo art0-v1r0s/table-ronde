@@ -98,6 +98,7 @@ def test_get_llm_claude_with_api_key():
             model="claude-sonnet-4-20250514",
             temperature=0.7,
             api_key="sk-ant-fake",
+            max_retries=3,
         )
         mock_instance.bind_tools.assert_called_once()
         assert result is mock_instance
@@ -118,6 +119,7 @@ def test_get_llm_claude_from_env():
             model="claude-sonnet-4-20250514",
             temperature=0.7,
             api_key="sk-ant-env",
+            max_retries=3,
         )
         assert result is mock_instance
 
@@ -141,6 +143,7 @@ def test_get_llm_claude_custom_model():
             model="claude-opus-4-20250514",
             temperature=0.3,
             api_key="sk-ant-fake",
+            max_retries=3,
         )
         assert result is mock_instance
 

@@ -542,6 +542,13 @@ class DebateScreen(Screen):
                     self._update_status,
                     f"🔧 Tool: {data['name']}",
                 )
+            elif phase == "retry":
+                role = data.get("role", "Agent").capitalize()
+                delay = data.get("delay", 2.0)
+                self.app.call_from_thread(
+                    self._update_status,
+                    f"⚠️ API Error ({role}). Retrying in {delay:.1f}s...",
+                )
 
         return callback
 

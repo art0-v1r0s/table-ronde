@@ -144,7 +144,12 @@ def get_llm(
             if prov in ("copilot", "github")
             else None
         )
-        kwargs: dict = {"model": model, "temperature": temperature, "api_key": key}
+        kwargs: dict = {
+            "model": model,
+            "temperature": temperature,
+            "api_key": key,
+            "max_retries": 3,
+        }
         if endpoint:
             kwargs["base_url"] = endpoint
         llm = ChatOpenAI(**kwargs)
@@ -157,7 +162,7 @@ def get_llm(
                 "Gemini API key not found. Please set the GEMINI_API_KEY environment variable."
             )
         gemini_llm = ChatGoogleGenerativeAI(
-            model=model, temperature=temperature, google_api_key=key
+            model=model, temperature=temperature, google_api_key=key, max_retries=3
         )
         return gemini_llm.bind_tools(AVAILABLE_TOOLS)
     elif prov == "ollama":
@@ -184,6 +189,7 @@ def get_llm(
             model=model,
             temperature=temperature,
             api_key=key,
+            max_retries=3,
         )
         return llm.bind_tools(AVAILABLE_TOOLS)
     else:

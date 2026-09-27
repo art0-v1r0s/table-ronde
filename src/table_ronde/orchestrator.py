@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from collections.abc import Callable, Generator
 from typing import Any
 
@@ -69,6 +70,10 @@ class Orchestrator:
         if instruction:
             self.history.append(HumanMessage(content=instruction))
 
+        max_retries = 3
+        retry_delay = 2.0
+        attempts = 0
+
         while True:
             # We stream without passing new_instruction since it's already in history
             gen = self.agents.stream_agent(role, self.history)
@@ -96,11 +101,48 @@ class Orchestrator:
 
             intercepted_gen = chunk_interceptor(gen, tool_call_chunks)
 
-            if self.on_message_callback:
-                self.on_message_callback(role, intercepted_gen)
-            else:
-                for _ in intercepted_gen:
-                    pass
+            try:
+                if self.on_message_callback:
+                    self.on_message_callback(role, intercepted_gen)
+                else:
+                    for _ in intercepted_gen:
+                        pass
+            except Exception as e:
+                error_str = str(e).lower()
+                is_transient = any(
+                    x in error_str
+                    for x in [
+                        "503",
+                        "502",
+                        "504",
+                        "429",
+                        "timeout",
+                        "unavailable",
+                        "rate limit",
+                        "connection",
+                        "overloaded",
+                        "resource exhausted",
+                    ]
+                )
+                if is_transient and attempts < max_retries:
+                    logger.warning(
+                        "Transient error for %s: %s. Retrying in %.1fs (attempt %d/%d)...",
+                        role,
+                        e,
+                        retry_delay,
+                        attempts + 1,
+                        max_retries,
+                    )
+                    if self.on_phase_callback:
+                        self.on_phase_callback(
+                            "retry",
+                            {"role": role, "delay": retry_delay, "error": str(e)},
+                        )
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    attempts += 1
+                    continue
+                raise
 
             if not tool_call_chunks:
                 self.transcript_entries.append(

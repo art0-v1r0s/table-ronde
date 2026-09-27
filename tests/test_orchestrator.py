@@ -85,3 +85,45 @@ def test_orchestrator_phase_callbacks():
     assert "opening" in phase_names
     assert phase_names.count("round") == 2
     assert "resolution" in phase_names
+
+
+def test_orchestrator_retry_on_503(monkeypatch):
+    mock_agents = MagicMock()
+    mock_agents.config = {"orchestrator": {"rounds": 1}}
+    mock_agents.architect_cfg = {
+        "role": "architect",
+        "title": "Architect",
+        "emoji": "🏛️",
+    }
+    mock_agents.personas = []
+
+    attempts = 0
+
+    def failing_then_succeeding_stream(role, history):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            def err_gen():
+                raise RuntimeError("503 Service Unavailable")
+                yield
+            return err_gen()
+        return iter([MagicMock(content="Success after 503 retry", tool_call_chunks=[])])
+
+    mock_agents.stream_agent.side_effect = failing_then_succeeding_stream
+
+    retries_recorded = []
+
+    def phase_cb(phase, data):
+        if phase == "retry":
+            retries_recorded.append(data)
+
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    orchestrator = Orchestrator(mock_agents, on_phase_callback=phase_cb)
+    result = orchestrator.run_simulation("Test 503 retry")
+
+    assert attempts >= 2
+    assert len(retries_recorded) >= 1
+    assert retries_recorded[0]["role"] == "architect"
+    assert "503" in retries_recorded[0]["error"]
+    assert "Success after 503 retry" in result["final_plan"]
