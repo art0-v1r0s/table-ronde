@@ -7,7 +7,7 @@ Screen {
 /* AgentMessageWidget */
 AgentMessageWidget {
     margin: 1 2;
-    padding: 0 1;
+    padding: 1 2;
     border: round $primary;
     background: $panel;
     height: auto;
@@ -42,7 +42,8 @@ SetupScreen {
 }
 
 .input-row {
-    height: 4;
+    height: auto;
+    min-height: 3;
     margin-bottom: 1;
 }
 
@@ -117,13 +118,13 @@ Input:focus, Select:focus {
 
 /* DebateScreen */
 DebateScreen {
-    layout: horizontal;
+    background: $surface;
 }
 
 #sidebar {
-    width: 35;
+    width: 30;
     height: 100%;
-    border-right: vkey $primary;
+    border-right: solid $primary-muted;
     background: $panel-darken-1;
 }
 
@@ -153,19 +154,17 @@ DebateScreen {
     text-style: italic;
 }
 
-#status-bar {
-    dock: bottom;
-    height: 1;
-    background: $primary;
-    color: $background;
-    padding: 0 2;
+.round-divider {
+    text-align: center;
+    color: $accent;
+    margin: 1 4;
     text-style: bold;
 }
 
 /* HumanInputModal */
 HumanInputModal {
     align: center middle;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.85);
 }
 
 #modal-container {
@@ -225,4 +224,8 @@ PlanViewScreen {
 
 #plan-buttons Button {
     margin: 0 2;
+}
+
+Button {
+    min-width: 16;
 }

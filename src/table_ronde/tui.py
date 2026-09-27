@@ -89,6 +89,7 @@ class SidebarInfo(Static):
     current_round = reactive(0)
     total_rounds = reactive(1)
     elapsed_secs = reactive(0.0)
+    active_agent = reactive("")
 
     def __init__(self, agents: list[dict[str, Any]], architect: dict[str, Any]) -> None:
         super().__init__()
@@ -106,31 +107,38 @@ class SidebarInfo(Static):
         arch_emoji = str(self._architect.get("emoji", "🏛️"))
         arch_title = str(self._architect.get("title", "Architect"))
         arch_role = str(self._architect.get("role", "architect"))
-        parts.append((f"  {arch_emoji} {arch_title}\n", get_agent_color(arch_role)))
+        indicator = "🟢" if self.active_agent == arch_role else "  "
+        parts.append((f" {indicator} {arch_emoji} {arch_title}\n", get_agent_color(arch_role)))
         # Personas
         for idx, p in enumerate(self._agents):
             p_emoji = str(p.get("emoji", "🤖"))
             p_title = str(p.get("title", p.get("role", "agent")))
             p_role = str(p.get("role", "agent"))
-            parts.append((f"  {p_emoji} {p_title}\n", get_agent_color(p_role, idx)))
+            indicator = "🟢" if self.active_agent == p_role else "  "
+            parts.append((f" {indicator} {p_emoji} {p_title}\n", get_agent_color(p_role, idx)))
 
         parts.append(("\n", ""))
 
         # Round progress
         total_safe = max(self.total_rounds, 1)
         current_safe = min(self.current_round, total_safe)
-        bar = "█" * current_safe + "░" * (total_safe - current_safe)
-        parts.append(("🔄 ROUND\n", "bold"))
-        parts.append((f"  {current_safe}/{total_safe} [{bar}]\n\n", "cyan"))
+        progress = current_safe / total_safe if total_safe > 0 else 0
+        filled = int(progress * 20)
+        bar = "━" * filled + "╺" + "─" * max(0, 19 - filled)
+        parts.append(("📊 PROGRESS\n", "bold"))
+        parts.append((f"  {bar} {current_safe}/{total_safe}\n\n", "cyan"))
 
         # Phase
-        parts.append(("📊 PHASE\n", "bold"))
-        parts.append((f"  {self.phase}\n\n", "cyan"))
+        phase_colors = {
+            "SETUP": "dim", "OPENING": "yellow", "DEBATE": "cyan",
+            "RESOLUTION": "green", "DONE": "bold green", "CANCELLED": "red"
+        }
+        color = phase_colors.get(self.phase, "white")
+        parts.append((f"⚡ {self.phase}\n\n", color))
 
         # Elapsed
         mins, secs = divmod(int(self.elapsed_secs), 60)
-        parts.append(("⏱️  ELAPSED\n", "bold"))
-        parts.append((f"  {mins}m {secs:02d}s\n", "cyan"))
+        parts.append((f"⏱️  {mins}m {secs:02d}s\n", "dim"))
 
         return Text.assemble(*parts)
 
@@ -154,17 +162,18 @@ class SetupScreen(Screen):
                     with Horizontal(classes="input-row"):
                         with Vertical(classes="input-col"):
                             yield Label("🤖 LLM Provider:")
-                            yield Select(
-                                (
-                                    ("Google Gemini (default)", "gemini"),
-                                    ("OpenAI", "openai"),
-                                    ("GitHub Copilot", "copilot"),
-                                    ("Anthropic Claude", "claude"),
-                                    ("Ollama (local)", "ollama"),
-                                ),
-                                value="gemini",
-                                id="provider",
-                            )
+                            import os
+                            providers = []
+                            for label, val, env_var in [
+                                ("Google Gemini", "gemini", "GEMINI_API_KEY"),
+                                ("OpenAI", "openai", "OPENAI_API_KEY"),
+                                ("GitHub Copilot", "copilot", "GITHUB_TOKEN"),
+                                ("Anthropic Claude", "claude", "ANTHROPIC_API_KEY"),
+                                ("Ollama (local)", "ollama", None),
+                            ]:
+                                status = "🟢" if env_var is None or os.getenv(env_var) else "🔴"
+                                providers.append((f"{status} {label}", val))
+                            yield Select(providers, value="gemini", id="provider")
                         with Vertical(classes="input-col"):
                             yield Label("🔗 Model (leave empty for default):")
                             yield Input(placeholder="e.g. gemini-3.8-flash, gpt-4o", id="model")
@@ -273,13 +282,11 @@ class DebateScreen(Screen):
                 yield Label("TABLE RONDE", id="sidebar-title")
                 # SidebarInfo will be mounted dynamically once agents are created
                 yield Static("⏳ Initializing...", id="sidebar-placeholder")
-            with Vertical(id="arena-wrapper"):
-                with ScrollableContainer(id="arena"):
+            with Vertical(id="arena-wrapper"), ScrollableContainer(id="arena"):
                     yield Static(
                         Text("🏛️ Waiting for debate to start...", style="dim italic"),
                         id="arena-empty",
                     )
-                yield Static("", id="status-bar")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -472,8 +479,12 @@ class DebateScreen(Screen):
             self.app.call_from_thread(
                 self._mount_agent_widget, title, emoji, color, widget_id
             )
+            self.app.call_from_thread(
+                self._set_active_agent, role
+            )
 
             full_text = ""
+            last_ui_update = 0.0
             try:
                 for chunk in gen:
                     if hasattr(chunk, "content") and chunk.content:
@@ -485,14 +496,20 @@ class DebateScreen(Screen):
                                     full_text += part
                                 elif isinstance(part, dict) and "text" in part:
                                     full_text += part["text"]
-                        self.app.call_from_thread(
-                            self._update_agent_widget, widget_id, full_text
-                        )
+                        now = time.monotonic()
+                        if now - last_ui_update > 0.1:
+                            self.app.call_from_thread(
+                                self._update_agent_widget, widget_id, full_text
+                            )
+                            last_ui_update = now
             except Exception as e:
                 self.app.call_from_thread(self._error_agent_widget, widget_id, str(e))
+                self.app.call_from_thread(self._set_active_agent, "")
                 raise
 
+            self.app.call_from_thread(self._update_agent_widget, widget_id, full_text)
             self.app.call_from_thread(self._finish_agent_widget, widget_id)
+            self.app.call_from_thread(self._set_active_agent, "")
             return full_text
 
         return callback
@@ -542,6 +559,28 @@ class DebateScreen(Screen):
 
     # ── Main-thread UI update methods (called via call_from_thread) ──
 
+
+    def _set_active_agent(self, role: str) -> None:
+        try:
+            sidebar = self.query_one(SidebarInfo)
+            sidebar.active_agent = role
+        except Exception:
+            pass
+
+    def _mount_round_divider(self, current: int, total: int) -> None:
+        try:
+            placeholder = self.query_one("#arena-empty")
+            placeholder.remove()
+        except Exception:
+            pass
+        arena = self.query_one("#arena")
+        arena.mount(
+            Static(
+                Text(f"── Round {current}/{total} ──", style="bold cyan"),
+                classes="round-divider",
+            )
+        )
+
     def _mount_sidebar(self, personas: list[dict], architect: dict) -> None:
         try:
             placeholder = self.query_one("#sidebar-placeholder")
@@ -575,11 +614,7 @@ class DebateScreen(Screen):
             pass
 
     def _update_status(self, text: str) -> None:
-        try:
-            status = self.query_one("#status-bar", Static)
-            status.update(text)
-        except Exception:
-            pass
+        self.app.sub_title = text
 
     def _mount_agent_widget(
         self, title: str, emoji: str, color: str, widget_id: str
@@ -602,7 +637,9 @@ class DebateScreen(Screen):
         try:
             widget = self.query_one(f"#{widget_id}", AgentMessageWidget)
             widget.text = text
-            widget.scroll_visible()
+            arena = self.query_one("#arena", ScrollableContainer)
+            if arena.scroll_y >= arena.max_scroll_y - 3:
+                widget.scroll_visible()
         except Exception:
             pass
 
