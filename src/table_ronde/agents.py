@@ -16,6 +16,19 @@ from langchain_core.messages import (
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
+MODEL_TIERS: dict[str, dict[str, str]] = {
+    "gemini": {"pro": "gemini-3.1-pro", "flash": "gemini-3.8-flash"},
+    "openai": {"pro": "gpt-4o", "flash": "gpt-4o-mini"},
+    "claude": {"pro": "claude-3-7-sonnet", "flash": "claude-haiku-4-20250414"},
+    "ollama": {"pro": "llama3.1", "flash": "llama3.1"}
+}
+
+def resolve_model_tier(provider: str, tier: str) -> str | None:
+    prov = provider.lower()
+    if prov in MODEL_TIERS:
+        return MODEL_TIERS[prov].get(tier.lower(), MODEL_TIERS[prov]["flash"])
+    return None
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "orchestrator": {
         "rounds": 1,

@@ -280,6 +280,34 @@ def main(
     if "orchestrator" not in config:
         config["orchestrator"] = {}
 
+
+    user_prompt = prompt or "Analysis and improvement of the provided project."
+    if rounds == 0:
+        ui.console.print("[dim]🧠 Smart Router is analyzing the task to determine rounds and models...[/dim]")
+        from table_ronde.smart_router import SmartRouterEngine
+        router_cfg = {"router_provider": router_provider, "smart_routing_enabled": True}
+        if router_model:
+            router_cfg["router_model"] = router_model
+        router = SmartRouterEngine(router_cfg)
+        
+        decision = router.analyze_task(user_prompt)
+        if decision:
+            rounds = decision.rounds
+            ui.console.print(f"[bold green]🎯 Smart Router chose {rounds} rounds (Complexity: {decision.complexity}/10 - Domain: {decision.domain})[/bold green]")
+            
+            from table_ronde.agents import resolve_model_tier
+            arch_model = resolve_model_tier(provider, decision.architect_model_tier)
+            expert_model = resolve_model_tier(provider, decision.expert_model_tier)
+            
+            if arch_model:
+                config.setdefault("architect", {})["model"] = arch_model
+                config["architect"]["temperature"] = decision.temperature
+            if expert_model:
+                config.setdefault("orchestrator", {})["default_model"] = expert_model
+        else:
+            rounds = 1
+            ui.console.print("[bold red]⚠️ Smart Router failed, defaulting to 1 round[/bold red]")
+
     if rounds is not None:
         config["orchestrator"]["rounds"] = rounds
 
@@ -287,7 +315,6 @@ def main(
     config["orchestrator"]["router_provider"] = router_provider
     config["orchestrator"]["router_model"] = router_model
 
-    user_prompt = prompt or "Analysis and improvement of the provided project."
 
     # ── Display visual banner, participants, and configuration ──
     ui.print_banner(provider)

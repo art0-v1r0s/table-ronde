@@ -7,6 +7,14 @@ from table_ronde.agents import get_llm
 
 logger = logging.getLogger(__name__)
 
+class TaskRoutingDecision(BaseModel):
+    rounds: int = Field(description="Recommended number of rounds (1 to 5) based on task complexity.")
+    architect_model_tier: str = Field(description="'pro' for complex tasks requiring deep reasoning, 'flash' for simple tasks.")
+    expert_model_tier: str = Field(description="'pro' or 'flash'.")
+    temperature: float = Field(description="Between 0.0 (strict) and 0.8 (creative).")
+    complexity: int = Field(description="Estimated complexity score (1-10).")
+    domain: str = Field(description="Main domain (e.g., 'Frontend', 'DevOps', 'Security', 'Architecture').")
+
 class ConsensusDecision(BaseModel):
     consensus_reached: bool = Field(
         description="True if participants have reached a clear technical agreement, False otherwise."
@@ -63,6 +71,17 @@ class SmartRouterEngine:
                     e,
                 )
                 self.enabled = False
+
+    def analyze_task(self, prompt: str) -> TaskRoutingDecision | None:
+        if not self.enabled:
+            return None
+        try:
+            llm = get_llm(self.provider, self.model_name, temperature=0.0)
+            analyzer = llm.with_structured_output(TaskRoutingDecision)
+            return analyzer.invoke(f"Analyze this task and determine the optimal debate configuration:\n\n{prompt}")
+        except Exception as e:
+            logger.error("SmartRouter analyze_task failed: %s", e)
+            return None
 
     def evaluate_consensus(self, history: list[Any]) -> bool:
         if not self.enabled or not self.consensus_evaluator:
