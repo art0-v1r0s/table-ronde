@@ -83,6 +83,17 @@ TabbedContent {
     margin-bottom: 1;
 }
 
+Input, Select, TextArea {
+    border: tall $primary-muted;
+    background: $panel;
+    color: $text;
+}
+
+Input:focus, Select:focus, TextArea:focus {
+    border: tall $accent;
+    background: $panel-lighten-1;
+}
+
 #setup-buttons {
     height: auto;
     margin-top: 2;
