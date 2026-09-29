@@ -382,11 +382,10 @@ class DebateScreen(Screen):
             else:
                 self.app.call_from_thread(self._update_status, "⚠️ Smart Router failed, defaulting to 1 round")
 
-        if rounds is not None and yaml_config:
-            yaml_config.setdefault("orchestrator", {})["rounds"] = rounds
-        elif rounds is not None:
+        if rounds is not None:
             if yaml_config is None:
-                yaml_config = {"orchestrator": {"rounds": rounds}}
+                yaml_config = {}
+            yaml_config.setdefault("orchestrator", {})["rounds"] = rounds
 
         # Check API keys
         prov_clean = provider.lower()

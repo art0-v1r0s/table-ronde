@@ -95,7 +95,7 @@ def test_get_llm_claude_with_api_key():
         result = get_llm(provider="claude", api_key="sk-ant-fake")
 
         mock_anthropic.assert_called_once_with(
-            model="claude-sonnet-4-20250514",
+            model="claude-3-7-sonnet",
             temperature=0.7,
             api_key="sk-ant-fake",
             max_retries=3,
@@ -116,7 +116,7 @@ def test_get_llm_claude_from_env():
             result = get_llm(provider="claude")
 
         mock_anthropic.assert_called_once_with(
-            model="claude-sonnet-4-20250514",
+            model="claude-3-7-sonnet",
             temperature=0.7,
             api_key="sk-ant-env",
             max_retries=3,

@@ -185,7 +185,7 @@ def main(
         help="Provider for the smart router (gemini, openai, claude, ollama)",
     ),
     router_model: str = typer.Option(
-        "gemini-1.5-flash",
+        "gemini-3.5-flash-lite",
         "--router-model",
         help="Model to use for smart routing (must support structured outputs)",
     ),

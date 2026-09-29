@@ -82,7 +82,9 @@ def is_binary(file_path: Path) -> bool:
         with open(file_path, "tr", encoding="utf-8") as check_file:
             check_file.read(1024)
             return False
-    except Exception:
+    except UnicodeDecodeError:
+        return True
+    except OSError:
         return True
 
 

@@ -30,7 +30,11 @@ def _get_raw_llm(provider: str, model_name: str, temperature: float = 0.0):
         return ChatAnthropic(model=model_name, temperature=temperature, api_key=key, max_retries=3)
     elif prov == "ollama":
         from langchain_ollama import ChatOllama
-        return ChatOllama(model=model_name, temperature=temperature)
+        return ChatOllama(
+            model=model_name,
+            temperature=temperature,
+            base_url="http://localhost:11434",
+        )
     else:
         return _get_llm_with_tools(provider, model_name, temperature=temperature)
 
@@ -70,7 +74,7 @@ class SmartRouterEngine:
             "router_provider", config.get("default_provider", "gemini")
         )
         self.model_name = config.get(
-            "router_model", FAST_MODELS.get(self.provider, "gemini-3.8-flash")
+            "router_model", FAST_MODELS.get(self.provider, "gemini-3.5-flash-lite")
         )
         self.consensus_threshold = config.get("consensus_threshold", 0.85)
 

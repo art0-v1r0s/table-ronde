@@ -193,7 +193,7 @@ def get_llm(
     elif prov == "claude":
         from langchain_anthropic import ChatAnthropic
 
-        model = model_name or "claude-sonnet-4-20250514"
+        model = model_name or "claude-3-7-sonnet"
         key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not key:
             raise ValueError(
@@ -230,7 +230,7 @@ class TableRondeAgents:
             "default_provider", "gemini"
         )
         self.default_model = model_name or orch_config.get(
-            "default_model", "gemini-3.6-flash"
+            "default_model", "gemini-3.8-flash"
         )
         self.api_key = api_key
         self.base_url = base_url
