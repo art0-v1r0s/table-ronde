@@ -54,7 +54,7 @@ class RoutingDecision(BaseModel):
     )
 
 FAST_MODELS: dict[str, str] = {
-    "gemini": "gemini-2.0-flash",
+    "gemini": "gemini-3.5-flash-lite",
     "openai": "gpt-4o-mini",
     "copilot": "gpt-4o-mini",
     "github": "gpt-4o-mini",
@@ -70,7 +70,7 @@ class SmartRouterEngine:
             "router_provider", config.get("default_provider", "gemini")
         )
         self.model_name = config.get(
-            "router_model", FAST_MODELS.get(self.provider, "gemini-2.0-flash")
+            "router_model", FAST_MODELS.get(self.provider, "gemini-3.8-flash")
         )
         self.consensus_threshold = config.get("consensus_threshold", 0.85)
 
@@ -171,8 +171,6 @@ def apply_task_routing(
     }
     if router_model:
         router_cfg["router_model"] = router_model
-    elif model:
-        router_cfg["router_model"] = model
 
     router = SmartRouterEngine(router_cfg)
     decision = router.analyze_task(prompt)
