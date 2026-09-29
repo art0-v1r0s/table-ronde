@@ -19,6 +19,8 @@ from langchain_openai import ChatOpenAI
 MODEL_TIERS: dict[str, dict[str, str]] = {
     "gemini": {"pro": "gemini-3.1-pro", "flash": "gemini-3.8-flash"},
     "openai": {"pro": "gpt-4o", "flash": "gpt-4o-mini"},
+    "copilot": {"pro": "gpt-4o", "flash": "gpt-4o-mini"},
+    "github": {"pro": "gpt-4o", "flash": "gpt-4o-mini"},
     "claude": {"pro": "claude-3-7-sonnet", "flash": "claude-haiku-4-20250414"},
     "ollama": {"pro": "llama3.1", "flash": "llama3.1"}
 }

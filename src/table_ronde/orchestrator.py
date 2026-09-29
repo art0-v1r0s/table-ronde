@@ -73,6 +73,8 @@ class Orchestrator:
         max_retries = 3
         retry_delay = 2.0
         attempts = 0
+        tool_iterations = 0
+        max_tool_iterations = 5
 
         while True:
             # We stream without passing new_instruction since it's already in history
@@ -152,8 +154,6 @@ class Orchestrator:
                 return final_content
 
             # If we get here, the model wanted to call tools
-            import json as json_lib
-
             tool_calls = []
 
             # Naive merging of tool call chunks
@@ -175,8 +175,8 @@ class Orchestrator:
             ai_message = AIMessage(content="", tool_calls=[])
             for idx, call_data in calls_by_index.items():
                 try:
-                    args_dict = json_lib.loads(call_data["args"])
-                except json_lib.JSONDecodeError as e:
+                    args_dict = json.loads(call_data["args"])
+                except json.JSONDecodeError as e:
                     logger.warning(
                         "Failed to parse tool call args for '%s' (index %s): %s — raw: %s",
                         call_data["name"],
@@ -188,11 +188,11 @@ class Orchestrator:
                     repaired = False
                     for suffix in ['"}', '"}}', '"}]']:
                         try:
-                            args_dict = json_lib.loads(call_data["args"] + suffix)
+                            args_dict = json.loads(call_data["args"] + suffix)
                             logger.info("Repaired tool call args with suffix: %s", suffix)
                             repaired = True
                             break
-                        except json_lib.JSONDecodeError:
+                        except json.JSONDecodeError:
                             continue
                     if not repaired:
                         args_dict = {}
@@ -227,6 +227,12 @@ class Orchestrator:
                 self.history.append(
                     ToolMessage(content=str(result), tool_call_id=tc["id"])
                 )
+
+            tool_iterations += 1
+            if tool_iterations >= max_tool_iterations:
+                logger.warning("Max tool iterations reached for %s", role)
+                self.history.append(AIMessage(content="[System: Max tool iterations reached. Please summarize your findings and finish.]"))
+                return final_content
 
             # The loop will continue and stream again using the new history with tool results
             if self.on_message_callback:
@@ -323,6 +329,7 @@ class Orchestrator:
                                 num_rounds += 1
                             elif decision == "SYNTHESIS":
                                 ui.console.print("[bold yellow]⚡ Smart Routing: Proceeding to synthesis.[/]")
+                                break
 
             if save_path:
                 self.save_session(save_path)

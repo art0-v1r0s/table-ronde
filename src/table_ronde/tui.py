@@ -332,7 +332,16 @@ class DebateScreen(Screen):
         custom_yaml_text = config.get("custom_yaml_text")
         yaml_config = None
 
-        if custom_yaml_text and custom_yaml_text.strip():
+        if config_file:
+            try:
+                with open(config_file, "r", encoding="utf-8") as f:
+                    yaml_config = yaml.safe_load(f)
+            except Exception as e:
+                self.app.call_from_thread(
+                    self.notify, f"Error reading {config_file}: {e}", severity="error"
+                )
+                return
+        elif custom_yaml_text and custom_yaml_text.strip():
             try:
                 yaml_config = yaml.safe_load(custom_yaml_text)
             except Exception as e:
@@ -352,38 +361,25 @@ class DebateScreen(Screen):
 
         if rounds == 0:
             self.app.call_from_thread(self._update_status, "🧠 Smart Router is analyzing the task...")
-            from table_ronde.smart_router import SmartRouterEngine
-            router_cfg = {"router_provider": provider, "smart_routing_enabled": True}
-            if model:
-                router_cfg["router_model"] = model
+            from table_ronde.smart_router import apply_task_routing
             
-            router = SmartRouterEngine(router_cfg)
-            decision = router.analyze_task(prompt)
+            if yaml_config is None:
+                yaml_config = {}
+                
+            rounds, decision = apply_task_routing(
+                provider=provider,
+                model=model,
+                prompt=prompt,
+                config=yaml_config
+            )
             if decision:
-                rounds = decision.rounds
                 self.app.call_from_thread(
                     self._update_status, 
                     f"🎯 Smart Router chose {rounds} rounds (Complexity: {decision.complexity}/10 - Domain: {decision.domain})"
                 )
                 import time
                 time.sleep(2)  # Give user a moment to see the decision
-                
-                if yaml_config is None:
-                    yaml_config = {}
-                yaml_config.setdefault("orchestrator", {})["rounds"] = rounds
-                yaml_config["orchestrator"]["default_provider"] = provider
-                
-                from table_ronde.agents import resolve_model_tier
-                arch_model = resolve_model_tier(provider, decision.architect_model_tier)
-                expert_model = resolve_model_tier(provider, decision.expert_model_tier)
-                
-                if arch_model:
-                    yaml_config.setdefault("architect", {})["model"] = arch_model
-                    yaml_config["architect"]["temperature"] = decision.temperature
-                if expert_model:
-                    yaml_config["orchestrator"]["default_model"] = expert_model
             else:
-                rounds = 1  # Fallback
                 self.app.call_from_thread(self._update_status, "⚠️ Smart Router failed, defaulting to 1 round")
 
         if rounds is not None and yaml_config:
