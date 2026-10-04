@@ -23,7 +23,11 @@ dependencies = [
     "rich>=15.0.0",
     "textual>=8.2.8",
     "typer>=0.27.2",
+    "langgraph>=0.2.0",
 ]
+
+[project.optional-dependencies]
+laya = ["laya>=0.1.0", "torch>=2.0.0"]
 
 [project.scripts]
 table-ronde = "table_ronde.cli:app"
@@ -41,6 +45,10 @@ dev = [
     "ruff>=0.16.7",
     "textual-dev>=1.7.0",
     "types-pyyaml>=6.0.12.20260906",
+]
+finetune = [
+    "torch>=2.0.0",
+    "transformers>=4.40.0",
 ]
 
 [tool.ruff.lint]

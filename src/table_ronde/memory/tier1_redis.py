@@ -31,8 +31,9 @@ class AsyncRedisMemoryFabric:
     Supports atomic JSON-patching, strict TTLs, and in-memory mock fallback when Redis is offline.
     """
 
-    def __init__(self, redis_url: str = "redis://localhost:6379", default_ttl: int = 1800) -> None:
-        self.redis_url = redis_url
+    def __init__(self, redis_url: str | None = None, default_ttl: int = 1800) -> None:
+        import os
+        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
         self.default_ttl = default_ttl
         self._client: Any = None
         self._fallback_memory: dict[str, SharedMemoryState] = {}

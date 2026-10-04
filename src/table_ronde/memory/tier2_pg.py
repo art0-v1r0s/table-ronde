@@ -33,8 +33,9 @@ class SemanticKnowledgeStore:
     Includes in-memory fallback when PostgreSQL with pgvector is offline.
     """
 
-    def __init__(self, pg_connection_string: str = "postgresql://postgres:postgres@localhost:5432/table_ronde_memory") -> None:
-        self.pg_conn = pg_connection_string
+    def __init__(self, pg_connection_string: str | None = None) -> None:
+        import os
+        self.pg_conn = pg_connection_string or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/table_ronde_memory")
         self._in_memory_docs: dict[str, SemanticDocument] = {}
         self._is_pg_connected = False
 

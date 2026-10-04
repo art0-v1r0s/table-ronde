@@ -22,9 +22,10 @@ class RedisMemoryCheckpointer(InMemorySaver):
     with local in-memory caching and point-in-time recovery.
     """
 
-    def __init__(self, redis_url: str = "redis://localhost:6379", ttl: int = 3600) -> None:
+    def __init__(self, redis_url: str | None = None, ttl: int = 3600) -> None:
+        import os
         super().__init__()
-        self.redis_url = redis_url
+        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
         self.ttl = ttl
         self._sync_redis: Any = None
         self._init_redis()

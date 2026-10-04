@@ -271,6 +271,20 @@ class Orchestrator:
                 f"Present the opening of the audit session based on this context:\n{context}",
                 f"Opening by {architect_title}",
             )
+
+            # Affichage de la décision de routing (si smart routing actif)
+            if self.router.enabled and hasattr(self.router, "current_feedback") and self.router.current_feedback:
+                _fb = self.router.current_feedback
+                _badge = {"laya": "⚡ Laya", "heuristic": "🔢 Heuristic", "llm": "🤖 LLM"}.get(
+                    _fb.routing_method, _fb.routing_method
+                )
+                ui.console.print(
+                    f"[dim]🧠 Smart Router [{_badge}] → "
+                    f"domain={_fb.predicted_domain} | "
+                    f"complexity={_fb.predicted_complexity}/10 | "
+                    f"rounds={_fb.predicted_rounds} | "
+                    f"confidence={_fb.confidence_score:.0%}[/dim]"
+                )
         else:
             # We already have history, but we need variables
             architect_role = self.agents.architect_cfg["role"]
@@ -283,6 +297,7 @@ class Orchestrator:
             else {}
         )
         num_rounds = orch_config.get("rounds", 1)
+        consensus_reached = False
 
         current_round = 1
         while current_round <= num_rounds:
@@ -310,6 +325,7 @@ class Orchestrator:
             if self.router.enabled:
                 if self.router.evaluate_consensus(self.history):
                     ui.console.print("[bold yellow]⚡ Smart Routing: Consensus reached. Ending debate early.[/]")
+                    consensus_reached = True
                     break
 
             # --- USER INTERVENTION (INTERACTIVE MODE) ---
@@ -359,6 +375,19 @@ class Orchestrator:
 
         if save_path:
             self.save_session(save_path)
+
+        # ── Sauvegarde du feedback de routing (Smart Router v2) ──
+        if hasattr(self.router, "current_feedback") and self.router.current_feedback is not None:
+            try:
+                from table_ronde.laya_feedback import FeedbackStore
+                fb = self.router.current_feedback
+                fb.actual_rounds_used = current_round if (consensus_reached or current_round <= num_rounds) else (current_round - 1)
+                fb.consensus_reached = consensus_reached
+                FeedbackStore().record(fb)
+                logger.info("Routing feedback recorded: domain=%s method=%s",
+                            fb.predicted_domain, fb.routing_method)
+            except Exception as e:
+                logger.warning("Failed to save routing feedback: %s", e)
 
         # Build the full transcript
         transcript_lines = [

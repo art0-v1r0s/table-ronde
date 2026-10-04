@@ -1,6 +1,7 @@
 import logging
 import os
 import socket
+import sys
 import time
 import warnings
 from collections.abc import Callable, Generator
@@ -9,6 +10,12 @@ from typing import Any
 
 import typer
 import yaml
+
+if sys.platform == "win32" and sys.stdout:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
 from langchain_core.messages import BaseMessageChunk
 from rich.prompt import Prompt
 from rich.rule import Rule
@@ -19,7 +26,8 @@ old_getaddrinfo = socket.getaddrinfo
 
 def new_getaddrinfo(*args, **kwargs):
     responses = old_getaddrinfo(*args, **kwargs)
-    return [response for response in responses if response[0] == socket.AF_INET]
+    v4_responses = [r for r in responses if r[0] == socket.AF_INET]
+    return v4_responses if v4_responses else responses
 
 
 socket.getaddrinfo = new_getaddrinfo
@@ -33,9 +41,20 @@ from table_ronde.agents import TableRondeAgents
 from table_ronde.menu import run_interactive_menu
 from table_ronde.orchestrator import Orchestrator
 
+
+class DefaultCommandGroup(typer.core.TyperGroup):
+    default_cmd_name = "main"
+
+    def parse_args(self, ctx, args):
+        if not args or (args[0] not in self.commands and args[0] not in ("--help", "-h")):
+            args.insert(0, self.default_cmd_name)
+        return super().parse_args(ctx, args)
+
+
 app = typer.Typer(
     name="table-ronde",
     help="Dynamic multi-agent orchestrator to debate and design implementation plans",
+    cls=DefaultCommandGroup,
 )
 
 
@@ -122,7 +141,7 @@ def make_human_input_callback(interactive: bool) -> Callable[[], str | None] | N
     return ask
 
 
-@app.command()
+@app.command("main")
 def main(
     prompt: str | None = typer.Argument(
         None, help="Project description or topic to analyze"
@@ -189,6 +208,16 @@ def main(
         "--router-model",
         help="Model to use for smart routing (must support structured outputs)",
     ),
+    router_strategy: str = typer.Option(
+        "auto",
+        "--router-strategy",
+        help="Routing strategy: auto (Laya→Heuristic→LLM) | laya | heuristic | llm",
+    ),
+    router_device: str = typer.Option(
+        "auto",
+        "--router-device",
+        help="Device for Laya inference: auto | cuda | mps | cpu",
+    ),
 ):
     # ── TUI mode (default) ──
     if not no_tui and not resume:
@@ -248,9 +277,9 @@ def main(
                 "[bold yellow]Warning: OPENAI_API_KEY is not set in the environment.[/bold yellow]"
             )
     elif prov_clean == "gemini":
-        if not os.getenv("GEMINI_API_KEY"):
+        if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
             ui.console.print(
-                "[bold yellow]Warning: GEMINI_API_KEY is not set in the environment.[/bold yellow]"
+                "[bold yellow]Warning: GEMINI_API_KEY or GOOGLE_API_KEY is not set in the environment.[/bold yellow]"
             )
     elif prov_clean == "claude":
         if not os.getenv("ANTHROPIC_API_KEY"):
@@ -279,6 +308,15 @@ def main(
     
     if "orchestrator" not in config:
         config["orchestrator"] = {}
+
+    # ── Smart Router v2 : injection de la stratégie dans config ──
+    if "smart_router" not in config:
+        config["smart_router"] = {}
+    config["smart_router"]["strategy"] = router_strategy
+    if "laya" not in config["smart_router"]:
+        config["smart_router"]["laya"] = {}
+    config["smart_router"]["laya"]["device"] = router_device
+    config["orchestrator"]["smart_router"] = config["smart_router"]
 
 
     user_prompt = prompt or "Analysis and improvement of the provided project."
@@ -371,6 +409,59 @@ def main(
             f"\n[bold red]An error occurred during the simulation: {e}[/bold red]"
         )
         raise typer.Exit(code=1)
+
+
+@app.command("finetune-router")
+def finetune_router_cmd(
+    output: str = typer.Option(
+        str(Path.home() / ".table_ronde" / "laya_custom"), "--output", "-o", help="Output directory for the fine-tuned model"
+    ),
+    feedback: str = typer.Option(
+        str(Path.home() / ".table_ronde" / "feedback_store.jsonl"), "--feedback", help="Path to the feedback JSONL file"
+    ),
+    base_checkpoint: str = typer.Option("convaiinnovations/laya", "--base", help="Base Laya HuggingFace checkpoint"),
+    epochs: int = typer.Option(3, "--epochs", "-e", help="Number of training epochs"),
+    batch_size: int = typer.Option(8, "--batch-size", "-b", help="Training batch size"),
+):
+    """Fine-tune le routeur Laya sur les données de routing accumulées."""
+    try:
+        from table_ronde.finetune_laya import finetune
+    except ImportError:
+        try:
+            from scripts.finetune_laya import finetune
+        except ImportError:
+            ui.console.print("[bold red]❌ The fine-tuning script is not available.[/bold red]")
+            ui.console.print("[yellow]Please ensure table-ronde is installed properly.[/yellow]")
+            raise typer.Exit(1)
+
+    from table_ronde.laya_feedback import FeedbackStore
+
+    store = FeedbackStore()
+    stats = store.stats()
+    ui.console.print(f"[bold]📊 Feedback store :[/] {stats}")
+
+    if stats.get("total", 0) < 10:
+        ui.console.print(
+            f"[bold yellow]⚠️ Peu de données réelles ({stats.get('total', 0)} samples). "
+            "Le dataset synthétique sera utilisé pour compenser.[/bold yellow]"
+        )
+
+    ui.console.print("[bold green]🚀 Démarrage du fine-tuning Laya...[/bold green]")
+    metrics = finetune(
+        output_dir=output,
+        feedback_path=feedback,
+        base_checkpoint=base_checkpoint,
+        epochs=epochs,
+        batch_size=batch_size,
+    )
+    ui.console.print(f"[bold green]✅ Fine-tuning terminé ![/bold green] Métriques : {metrics}")
+    ui.console.print(f"[dim]Checkpoint sauvegardé dans : {output}[/dim]")
+    ui.console.print(
+        "[dim]Pour utiliser le modèle fine-tuné, ajoutez dans votre config.yaml :\n"
+        "  smart_router:\n"
+        "    laya:\n"
+        f"      checkpoint: {output}[/dim]"
+    )
 
 
 if __name__ == "__main__":

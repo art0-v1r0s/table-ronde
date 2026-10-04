@@ -171,10 +171,10 @@ def get_llm(
         return llm.bind_tools(AVAILABLE_TOOLS)
     elif prov == "gemini":
         model = model_name or "gemini-3.8-flash"
-        key = api_key or os.getenv("GEMINI_API_KEY")
+        key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not key:
             raise ValueError(
-                "Gemini API key not found. Please set the GEMINI_API_KEY environment variable."
+                "Gemini API key not found. Please set the GEMINI_API_KEY or GOOGLE_API_KEY environment variable."
             )
         gemini_llm = ChatGoogleGenerativeAI(
             model=model, temperature=temperature, google_api_key=key, max_retries=3
@@ -184,10 +184,13 @@ def get_llm(
         from langchain_ollama import ChatOllama
 
         model = model_name or "llama3.1"
+        ollama_url = base_url or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
+        if not ollama_url.startswith("http"):
+            ollama_url = f"http://{ollama_url}"
         llm = ChatOllama(
             model=model,
             temperature=temperature,
-            base_url=base_url or "http://localhost:11434",
+            base_url=ollama_url,
         )
         return llm.bind_tools(AVAILABLE_TOOLS)
     elif prov == "claude":

@@ -201,3 +201,52 @@ def test_agents_claude_provider():
             config=config, provider="claude", api_key="sk-ant-fake"
         )
         assert agents._get_llm_for_role("architect") is not None
+
+
+@patch("table_ronde.agents.AVAILABLE_TOOLS", [])
+def test_get_llm_gemini_google_api_key_fallback():
+    """Gemini provider should fall back to GOOGLE_API_KEY if GEMINI_API_KEY is not set."""
+    with patch("table_ronde.agents.ChatGoogleGenerativeAI") as mock_gemini:
+        mock_instance = MagicMock()
+        mock_gemini.return_value = mock_instance
+        mock_instance.bind_tools.return_value = mock_instance
+
+        with patch.dict(os.environ, {"GOOGLE_API_KEY": "fake-google-key"}, clear=True):
+            result = get_llm(provider="gemini")
+
+        mock_gemini.assert_called_once_with(
+            model="gemini-3.8-flash",
+            temperature=0.7,
+            google_api_key="fake-google-key",
+            max_retries=3,
+        )
+        assert result is mock_instance
+
+
+@patch("table_ronde.agents.AVAILABLE_TOOLS", [])
+def test_get_llm_gemini_missing_keys_raises():
+    """Gemini provider should raise ValueError when neither GEMINI_API_KEY nor GOOGLE_API_KEY is present."""
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        pytest.raises(ValueError, match="Gemini API key not found"),
+    ):
+        get_llm(provider="gemini")
+
+
+@patch("table_ronde.agents.AVAILABLE_TOOLS", [])
+def test_get_llm_ollama_from_env_host():
+    """Ollama provider should respect OLLAMA_HOST environment variable."""
+    with patch("langchain_ollama.ChatOllama") as mock_ollama:
+        mock_instance = MagicMock()
+        mock_ollama.return_value = mock_instance
+        mock_instance.bind_tools.return_value = mock_instance
+
+        with patch.dict(os.environ, {"OLLAMA_HOST": "remote-host:11434"}):
+            get_llm(provider="ollama")
+
+        mock_ollama.assert_called_once_with(
+            model="llama3.1",
+            temperature=0.7,
+            base_url="http://remote-host:11434",
+        )
+

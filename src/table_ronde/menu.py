@@ -141,7 +141,7 @@ def run_interactive_menu() -> dict[str, Any]:
     ui.console.print()
     ui.console.print(
         Panel(
-            "\\n".join(summary_lines),
+            "\n".join(summary_lines),
             title="📋 [bold]Session Launch Summary[/bold]",
             border_style="cyan",
             padding=(0, 1),

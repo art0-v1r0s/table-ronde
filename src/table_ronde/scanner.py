@@ -79,11 +79,9 @@ MAX_FILE_CHARS = 6_000
 
 def is_binary(file_path: Path) -> bool:
     try:
-        with open(file_path, "tr", encoding="utf-8") as check_file:
-            check_file.read(1024)
-            return False
-    except UnicodeDecodeError:
-        return True
+        with open(file_path, "rb") as check_file:
+            chunk = check_file.read(1024)
+            return b"\x00" in chunk
     except OSError:
         return True
 
@@ -148,8 +146,9 @@ def scan_project(project_path: str | Path) -> str:
             if d in EXCLUDE_DIRS or d.startswith("."):
                 continue
             rel_subdir = rel_dir / d if rel_dir != Path(".") else Path(d)
+            posix_subdir = rel_subdir.as_posix()
             if spec and (
-                spec.match_file(str(rel_subdir)) or spec.match_file(f"{rel_subdir}/")
+                spec.match_file(posix_subdir) or spec.match_file(f"{posix_subdir}/")
             ):
                 continue
             filtered_dirs.append(d)
@@ -170,7 +169,7 @@ def scan_project(project_path: str | Path) -> str:
             if file_path.suffix.lower() in EXCLUDE_EXTENSIONS:
                 continue
 
-            if spec and spec.match_file(str(rel_file)):
+            if spec and spec.match_file(rel_file.as_posix()):
                 continue
 
             tree_lines.append(f"{sub_indent}📄 {f}")

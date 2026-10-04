@@ -1,183 +1,209 @@
 # 🏛️ Table-Ronde
 
-> **Dynamic multi-agent orchestrator for technical debate and generating implementation plans v2.0 / v3.0.**
+> **Dynamic multi-agent orchestrator for technical debate, codebase auditing, and automated implementation plans.**
 
-`table-ronde` is a Command Line Interface (CLI) tool powered by **LangChain** and **Rich**. It simulates a roundtable discussion between several AI agents with complementary roles and personalities (by default: the Architect, the Skeptic, and the Enthusiast) to analyze a topic, an architectural concept, or an existing codebase and produce a highly structured action plan.
+`table-ronde` is an advanced AI roundtable orchestrator powered by **LangChain**, **Textual**, and **Rich**. It simulates collaborative technical discussions between specialized AI agents (by default: the Architect, the Skeptic, and the Enthusiast) to analyze architectural questions, audit existing codebases, and synthesize actionable, structured implementation plans.
 
-Since version 2.0, **Table-Ronde is completely dynamic**: you can configure your own experts, use different LLMs simultaneously, and orchestrate debates across multiple rounds!
+Now featuring **Smart Router v2.0** with **Laya** neural routing, full-screen **Textual TUI**, **multi-tier memory fabric**, and **universal cross-platform support** (Linux, macOS with Apple Silicon MPS, and Windows).
 
 ---
 
-## ⚡ Features (v2.0 / v3.0)
+## ⚡ Key Features
 
-- **Interactive Setup Menu (NEW)**: Launching `table-ronde` with zero arguments triggers a guided terminal menu (`questionary`) to configure the topic, provider, rounds, and paths interactively.
-- **Immersive Visual Terminal UI (NEW)**: ASCII art banner (`pyfiglet`), colored streaming panels per agent role, round progress bars, tool call indicators, and execution duration summaries.
-- **Dynamic Configuration (`config.yml`)**: Define your own personas (e.g., Security Expert, Junior Developer), their emojis, their prompts, and individual temperatures.
-- **Hybrid Models**: Ability to assign a different LLM provider/model to each agent (e.g., `gpt-4o` for the Architect, `gemini-3.6-flash` for the Skeptic).
-- **Multiple Rounds**: Launch in-depth debates across multiple loops (`--rounds N`).
-- **Advanced Interactive Mode**: Intervene before the final synthesis to give your directives, or type `/round` to force the agents into a new debate round based on your remarks (`--interactive`).
-- **Codebase Analysis**: Smart project scanner with built-in `.gitignore` filtering via `pathspec`.
-- **Highly Optimized Network**: Network implementation (forcing IPv4) for instant connection times, avoiding IPv6 blackholes on the Google API.
-- **Real-time Streaming**: Fluid chunk-by-chunk display of each agent's thoughts using `rich.Live`.
-- **Deliverable Export**: Export the final plan in Markdown format and optionally export the full transcript of the exchanges.
+- **🖥️ Full-Screen Interactive TUI (`Textual`)**: Modern terminal interface with real-time streaming, reactive agent panels, debate timeline, interactive human-in-the-loop modals, and a built-in plan viewer. (Use `--no-tui` for the classic Rich CLI).
+- **🧠 Smart Router v2.0 (Hybrid Laya + Heuristics + LLM)**:
+  - **Tier 1 (Laya)**: Ultra-fast (~33ms) neural routing based on [ConvAI Laya](https://huggingface.co/convaiinnovations/laya), running locally on NVIDIA CUDA or Apple Silicon (MPS).
+  - **Tier 2 (Heuristics)**: Deterministic, zero-latency (0ms), offline keyword and complexity analyzer.
+  - **Tier 3 (Structured LLM)**: Deep reasoning fallback using structured outputs (Gemini Flash, GPT-4o-mini, Claude, Ollama).
+  - **Continuous Learning Loop**: Automatically tracks routing feedback and outcomes in `feedback_store.jsonl` and includes a built-in `finetune-router` CLI.
+- **🌍 Universal Multi-Platform Compatibility**:
+  - **macOS**: Native GPU acceleration via Apple Silicon (`mps`) and resilient IPv4/IPv6 networking.
+  - **Windows**: Full PowerShell compatibility, automated UTF-8 console reconfiguration, POSIX-normalized `.gitignore` matching, and file-lock retries.
+  - **Linux**: Zero-configuration support across Intel, AMD, and ARM architectures.
+- **💾 Multi-Tier Resilient Memory Fabric**:
+  - **Tier 1 (Working Memory)**: Redis-backed shared memory state and LangGraph checkpointing for session persistence and recovery.
+  - **Tier 2 (Semantic Knowledge)**: Long-term PostgreSQL + `pgvector` store for architectural patterns and past debates.
+  - **Graceful Fallbacks**: Transparently operates with in-memory state when external databases are offline.
+- **🎭 Fully Configurable Personas & Hybrid Models**:
+  - Define custom experts, temperatures, prompts, and distinct models per role via `config.yml` (e.g., GPT-4o for Architect, Gemini 3.8 Flash for Skeptic, Claude for Security).
+- **🔄 Multi-Round Debates & Human-in-the-Loop**:
+  - Multi-round consensus checking. Intervene between rounds to provide feedback or type `/round` to trigger an additional debate cycle based on your guidance.
+- **📁 Smart Codebase Scanner**:
+  - Priority-based file scanner respecting `.gitignore` rules, handling UTF-8 BOM, and automatically ignoring binaries (`.dll`, `.pyd`, `.so`, `.exe`).
 
 ---
 
 ## 🎭 Default Agents
 
-If you don't use a custom configuration, the system launches these 3 default agents:
-
-| Emoji | Role | Name | Description & Role in the debate | Temperature |
+| Emoji | Role | Persona | Mission | Temp |
 | :---: | :--- | :--- | :--- | :---: |
-| 😈 | **Agent 1** | **The Skeptic** | The Devil's Advocate. Actively looks for flaws, technical debt, security risks, and unnecessary complexity. | `0.6` |
-| 🚀 | **Agent 2** | **The Enthusiast** | The Visionary. Responds to criticisms, proposes modern solutions, seeks the fastest path to deliver value. | `0.8` |
-| 🏛️ | **Agent 3** | **The Architect** | The Moderator. Guides the exchanges, pragmatically settles debates, and generates the **Final Implementation Plan** in Markdown. | `0.3` |
+| 😈 | **Agent 1** | **The Skeptic** | Devil's Advocate. Identifies security flaws, technical debt, performance bottlenecks, and edge cases. | `0.6` |
+| 🚀 | **Agent 2** | **The Enthusiast** | Visionary & Builder. Counter-argues, proposes modern solutions, frameworks, and fast paths to value. | `0.8` |
+| 🏛️ | **Agent 3** | **The Architect** | Moderator & Lead. Synthesizes perspectives, settles debates, and drafts the **Final Implementation Plan**. | `0.3` |
 
 ---
 
 ## 🛠️ Installation
 
-The project uses [`uv`](https://github.com/astral-sh/uv) for dependency and virtual environment management (Python ≥ 3.12).
+The project uses [`uv`](https://github.com/astral-sh/uv) (Python ≥ 3.12).
+
+### 1. Standard Lightweight Installation (Default)
+By default, heavy dependencies like PyTorch and Laya are optional, keeping the install fast and lightweight:
 
 ```bash
-# Clone the repository
 git clone https://github.com/art0-v1r0s/table-ronde.git
 cd table-ronde
-
-# Sync the environment and install dependencies
 uv sync
+```
+
+### 2. Optional: With Laya Neural Router (GPU / Apple Silicon)
+To enable local Laya neural routing on CUDA or Apple Silicon:
+
+```bash
+uv sync --extra laya
 ```
 
 ---
 
-## 🔑 API Keys Configuration
+## 🔑 Environment Variables & API Keys
 
-Set the environment variable corresponding to the provider you want to use:
+Set the environment variables for your chosen providers (Linux/macOS: `export VAR="val"`, Windows PowerShell: `$env:VAR="val"`):
 
-### For Google Gemini (default)
+### LLM Providers
 ```bash
+# Google Gemini (supports both GEMINI_API_KEY and GOOGLE_API_KEY)
 export GEMINI_API_KEY="your_gemini_api_key"
-```
 
-### For GitHub Copilot / GitHub Models / OpenAI
-```bash
-export GITHUB_TOKEN="your_github_token"
-# or
-export COPILOT_API_KEY="your_copilot_key"
-# or
+# OpenAI / GitHub Models / Copilot
 export OPENAI_API_KEY="your_openai_key"
-```
+export GITHUB_TOKEN="your_github_token"
+export COPILOT_API_KEY="your_copilot_key"
 
-### For Anthropic Claude
-```bash
+# Anthropic Claude
 export ANTHROPIC_API_KEY="your_anthropic_api_key"
+
+# Local Ollama (no key needed; custom host supported)
+export OLLAMA_HOST="http://localhost:11434"
 ```
 
-### For Ollama (local — no API key needed)
+### Storage & Endpoints (Optional)
 ```bash
-# Install Ollama: https://ollama.com
-curl -fsSL https://ollama.com/install.sh | sh
+# Custom directory for data and feedback store (defaults to ~/.table_ronde)
+export TABLE_RONDE_DATA_DIR="/path/to/data"
 
-# Pull a model (e.g., llama3.1, mistral, qwen2.5, gemma2)
-ollama pull llama3.1
+# Redis URL for Tier 1 memory & LangGraph checkpointing (defaults to redis://localhost:6379)
+export REDIS_URL="redis://localhost:6379"
+
+# PostgreSQL URL for Tier 2 vector memory (defaults to postgresql://...:5432/table_ronde_memory)
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/table_ronde_memory"
 ```
 
 ---
 
 ## 🚀 Usage
 
-### 0. Guided Interactive Menu (Zero Arguments)
-
-Launch without any arguments to start the interactive wizard:
+### 1. Interactive TUI Mode (Default)
+Run without arguments to launch the guided interactive wizard in the full-screen terminal UI:
 ```bash
 uv run table-ronde
 ```
-*Guides you through choosing the topic, LLM provider (Gemini, OpenAI, Copilot), debate rounds, directory scanning, and custom configs with interactive terminal prompts.*
 
-### 1. Simple Analysis (Default Prompts and Agents)
-
+### 2. Command Line Direct Launch
+Analyze a concept or system design directly:
 ```bash
-uv run table-ronde "Design a real-time microservices architecture for an auction platform"
+uv run table-ronde "Design a real-time event-driven microservices architecture"
 ```
 
-### 2. Audit and Refactoring of an Existing Project
-
+### 3. Codebase Audit & Refactoring
+Point Table-Ronde to any local code repository:
 ```bash
-uv run table-ronde --path /path/to/my-project "Optimize the security and scalability of the project"
+uv run table-ronde --path /path/to/project "Audit security, scalability, and suggest improvements"
 ```
 
-### 3. Use Your Own Persona Configuration (NEW)
+### 4. Smart Routing & Hardware Acceleration
+Leverage Smart Router v2.0 with automatic hardware selection:
+```bash
+uv run table-ronde --smart-routing --router-strategy auto --router-device auto "Design an OAuth2 authentication service"
+```
+*Options for `--router-device`: `auto` (picks CUDA if available, then Apple Silicon MPS, then CPU), `cuda`, `mps`, `cpu`.*
 
-Create a `my_config.yml` file to define your custom experts:
+### 5. Custom Personas (`config.yml`)
+Define custom experts and assigned models in YAML:
 ```yaml
 orchestrator:
   rounds: 2
   default_provider: gemini
-  default_model: gemini-3.6-flash
+  default_model: gemini-3.8-flash
 
 architect:
   role: architect
-  title: "The Architect"
+  title: "Principal Architect"
   emoji: "🏛️"
   temperature: 0.2
-  prompt: "You are the Architect. Moderate the experts and propose a highly detailed plan."
-  # model: gpt-4o (you can override the default model here)
+  prompt: "Synthesize debates into an actionable production plan."
 
 personas:
   - role: security
-    title: "Security Expert"
+    title: "Security Auditor"
     emoji: "🛡️"
-    temperature: 0.3
-    prompt: "You systematically look for OWASP vulnerabilities in the proposed idea."
-  - role: dev
-    title: "Lead Developer"
-    emoji: "💻"
-    temperature: 0.6
-    prompt: "You talk software architecture, design patterns, and scalability."
+    temperature: 0.2
+    prompt: "Identify OWASP Top 10 risks and zero-trust vulnerabilities."
+  - role: devops
+    title: "SRE Lead"
+    emoji: "⚙️"
+    temperature: 0.4
+    prompt: "Focus on Kubernetes, CI/CD, observability, and failover."
 ```
-Then run the tool:
+Run with:
 ```bash
-uv run table-ronde --config my_config.yml "Implement an OAuth2 SSO"
+uv run table-ronde --config my_config.yml "Deploy a multi-region payment processing platform"
 ```
 
-### 4. Interactive Mode (Human-in-the-loop) and Multi-Rounds
-
+### 6. Fine-Tuning Laya on Accumulated Feedback
+Fine-tune the neural router on real debate outcomes gathered in your environment:
 ```bash
-uv run table-ronde --interactive --rounds 2 "Modernize our data pipeline architecture"
+uv run table-ronde finetune-router --epochs 3 --batch-size 8
 ```
-*The debate will pause at the end of each round to allow you to insert your directives for the Architect. If you reply with the magic command `/round`, the agents will do a full new cycle of debate based on your remark!*
+
+### 7. Headless / Non-TUI Mode
+For CI/CD pipelines, scripting, or minimal environments:
+```bash
+uv run table-ronde --no-tui "Refactor authentication flow" -o plan.md
+```
 
 ---
 
-## 🛠️ Full CLI Options
+## 🛠️ CLI Reference
 
-```bash
-uv run table-ronde [OPTIONS] [PROMPT]
-```
+### `table-ronde [prompt] [OPTIONS]`
 
-| Option | Shortcut | Description | Default Value |
+| Option | Shortcut | Description | Default |
 | :--- | :--- | :--- | :--- |
-| `--config` | `-c` | YAML configuration file for custom personas | `None` |
-| `--rounds` | `-r` | Number of debate rounds (overrides YAML config) | `1` |
-| `--interactive` | `-i` | Pause before resolution to inject your note or `/round` | `False` |
 | `--path` | `-p` | Path to an existing project directory to scan | `None` |
-| `--output` | `-o` | Output file for the final implementation plan | `plan_v2.md` |
-| `--provider` | `-pr` | LLM Provider (`gemini`, `copilot`, `github`, `openai`, `claude`, `ollama`) | `gemini` |
-| `--model` | `-m` | Specific model to use (e.g., `gemini-3.6-flash`, `gpt-4o`) | Auto based on provider |
-| `--export-transcript` | `-t` | File path to export the entire debate transcript | `None` |
+| `--output` | `-o` | Output file path for the final implementation plan | `plan_v2.md` |
+| `--config` | `-c` | Path to custom YAML configuration file | `None` |
+| `--rounds` | `-r` | Number of debate rounds | `1` |
+| `--provider` | `-pr` | LLM Provider (`gemini`, `openai`, `copilot`, `claude`, `ollama`) | `gemini` |
+| `--model` | `-m` | Model identifier (e.g. `gemini-3.8-flash`, `gpt-4o`) | Provider default |
+| `--interactive` | `-i` | Pause after each round for human guidance or `/round` | `False` |
+| `--export-transcript` | `-t` | Export file path for the complete debate transcript | `None` |
+| `--smart-routing` | | Enable Smart Router (System One task analysis & consensus) | `False` |
+| `--router-strategy` | | Strategy: `auto` (Laya ➔ Heuristic ➔ LLM), `laya`, `heuristic`, `llm` | `auto` |
+| `--router-device` | | Device for Laya inference: `auto`, `cuda`, `mps`, `cpu` | `auto` |
+| `--no-tui` | | Disable full-screen Textual TUI and use classic streaming CLI | `False` |
+| `--save-session` | | Path to save the debate session state (JSON) | `None` |
+| `--resume` | | Path to resume a debate session from JSON | `None` |
 
 ---
 
 ## 🧪 Testing & Quality
 
-Run the unit test suite with `pytest`:
-
+Run the test suite across all modules (94+ unit and integration tests):
 ```bash
 uv run pytest
 ```
 
-Check code quality with `ruff`:
-
+Run code formatting and static analysis:
 ```bash
 uv run ruff check .
 ```

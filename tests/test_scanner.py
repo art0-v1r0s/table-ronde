@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from table_ronde.scanner import calculate_file_priority, get_gitignore_spec, is_binary
+from table_ronde.scanner import (
+    calculate_file_priority,
+    get_gitignore_spec,
+    is_binary,
+    scan_project,
+)
 
 
 def test_is_binary(tmp_path: Path):
@@ -28,3 +33,18 @@ def test_calculate_file_priority():
     assert calculate_file_priority(Path("readme.md")) > 100
     assert calculate_file_priority(Path("src/main.py")) >= 50
     assert calculate_file_priority(Path("test_something.py")) < 50  # penalty for tests
+
+
+def test_scan_repository_with_gitignore(tmp_path: Path):
+    (tmp_path / ".gitignore").write_text("ignored_dir/\n*.secret")
+    (tmp_path / "ignored_dir").mkdir()
+    (tmp_path / "ignored_dir" / "secret.txt").write_text("hidden")
+    (tmp_path / "app.secret").write_text("hidden")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text("print('hello')")
+
+    result = scan_project(tmp_path)
+    assert "main.py" in result
+    assert "secret.txt" not in result
+    assert "app.secret" not in result
+

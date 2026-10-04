@@ -1,6 +1,12 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from table_ronde.smart_router import SmartRouterEngine, TaskRoutingDecision, ConsensusDecision, RoutingDecision
+
+from table_ronde.smart_router import (
+    ConsensusDecision,
+    RoutingDecision,
+    SmartRouterEngine,
+    TaskRoutingDecision,
+)
+
 
 def test_analyze_task_returns_decision():
     config = {"smart_routing_enabled": True, "router_provider": "gemini"}

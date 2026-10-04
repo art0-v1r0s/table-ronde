@@ -32,7 +32,7 @@ def search_codebase(query: str, path: str) -> str:
         "build",
         "dist",
     }
-    ignore_exts = {".pyc", ".so", ".exe", ".png", ".jpg", ".pdf"}
+    ignore_exts = {".pyc", ".so", ".exe", ".png", ".jpg", ".pdf", ".dll", ".dylib", ".pyd", ".bin", ".wasm", ".class"}
 
     match_count = 0
     max_matches = 50  # To prevent overwhelming the context
@@ -49,10 +49,10 @@ def search_codebase(query: str, path: str) -> str:
 
                 file_path = Path(root) / file
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, "r", encoding="utf-8-sig", errors="replace") as f:
                         for line_num, line in enumerate(f, 1):
                             if query in line:
-                                rel_path = file_path.relative_to(root_path)
+                                rel_path = file_path.relative_to(root_path).as_posix()
                                 results.append(f"{rel_path}:{line_num}: {line.strip()}")
                                 match_count += 1
                                 if match_count >= max_matches:
@@ -60,8 +60,8 @@ def search_codebase(query: str, path: str) -> str:
                                         f"... (truncated after {max_matches} matches)"
                                     )
                                     break
-                except UnicodeDecodeError:
-                    pass  # Skip binary files that don't match our ignore_exts
+                except Exception:
+                    pass  # Skip files we absolutely cannot read
                 if match_count >= max_matches:
                     break
             if match_count >= max_matches:
@@ -96,7 +96,7 @@ def read_file(
         return f"Error: The file '{filepath}' does not exist."
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
             lines = f.readlines()
 
         start = max(1, start_line) if start_line else 1

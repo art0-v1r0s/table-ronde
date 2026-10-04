@@ -95,3 +95,22 @@ def test_cli_menu_abort(mock_menu):
     mock_menu.side_effect = SystemExit(0)
     result = runner.invoke(app, ["--no-tui"])
     assert result.exit_code == 0
+
+
+def test_getaddrinfo_ipv4_and_ipv6_fallback():
+    import socket
+
+    from table_ronde.cli import new_getaddrinfo
+
+    ipv4_res = (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 80))
+    ipv6_res = (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 80))
+
+    with patch("table_ronde.cli.old_getaddrinfo", return_value=[ipv4_res, ipv6_res]):
+        res = new_getaddrinfo("example.com", 80)
+        assert res == [ipv4_res]
+
+    # When network is IPv6-only, it should fallback to all responses instead of returning empty list
+    with patch("table_ronde.cli.old_getaddrinfo", return_value=[ipv6_res]):
+        res = new_getaddrinfo("example.com", 80)
+        assert res == [ipv6_res]
+
